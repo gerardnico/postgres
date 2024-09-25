@@ -1,0 +1,17 @@
+.idea
+# no env file
+*.env
+logs
+# no secret
+**/*secret
+**/*secret.*
+# not passphrase
+**/*passphrase
+**/*passphrase.*
+# not temp
+temp
+# no private
+*private*
+# no pem (cer/ key)
+*.pem
+
