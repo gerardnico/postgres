@@ -2,21 +2,26 @@
 
 set -euo pipefail
 
-# Set -e DOKU_DOCKER_STRICT=false to debug
 
+# What are the -c flags passed to supervisor-ctl
 # The supervisor-ctl script is made so that any arguments will be passed along to the postgres server daemon
 # If you pass for instance `-c` flags, you will change the postgres configuration
 # -d \
+
+# Create the mount point to give it the right permissions
+MOUNT_POINT="$PWD"/mount
+mkdir -p "$MOUNT_POINT"
+
 docker run \
   --name postgres \
   --rm \
-  -p 5434:5432 \
+  -p 5432:5432 \
   -p 9187:9187 \
   --env-file secret.env \
   --user 1000:1000 \
   --group-add postgres \
   -e POSTGRES_PASSWORD=welcome \
-  -v "$PWD"/pgdata:/data \
+  -v "${MOUNT_POINT}":/data \
   "${DOCKER_REGISTRY:-docker.io}"/"${DOCKER_USER}"/"${DOCKER_REPO}":"$DOCKER_TAG" \
   supervisor-ctl \
   -c shared_buffers=256MB \

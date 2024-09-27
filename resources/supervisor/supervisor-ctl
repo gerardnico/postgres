@@ -1,18 +1,18 @@
 #!/bin/bash
 
+# Setting strictly bash
+set -Eeuo pipefail
 
 SUPERVISOR_CONF_PATH=${SUPERVISOR_CONF_PATH:-/supervisord.conf}
 
 LOG_HOME=${LOG_HOME:-/var/log}
 
 # Get the bash environments
-for i in /etc/profile.d/*.sh; do
-  if [ -r "$i" ]; then
+for file in /etc/profile.d/*.sh; do
     # shellcheck disable=SC1090
-    . "$i"
-  fi
+    [ -r "$file" ] && source "$file"
 done
-unset i
+unset file
 
 
 # Create log dirs
@@ -33,6 +33,7 @@ for LOG in "${LOGS[@]}"; do
 done
 
 export POSTGRES_ARGS="${*}"
+echo_info "postgres args: ${POSTGRES_ARGS}"
 
 # we set the `c` to avoid the below warning:
 # UserWarning: Supervisord is running as root and it is searching

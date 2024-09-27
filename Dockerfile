@@ -210,6 +210,12 @@ LABEL sql-exporter-version=${SQL_EXPORTER_VERSION}
 ###############
 ## The mounted directory
 ENV DATA_HOME=/data
+RUN echo "Create the data directory" && \
+    mkdir -p "${DATA_HOME}" && \
+    echo "Every user should be able to create directory in it" && \
+    chown postgres:postgres "${DATA_HOME}" && \
+    chmod 0777 "${DATA_HOME}"
+
 # The log home
 ENV LOG_HOME=/var/log
 
@@ -264,18 +270,16 @@ RUN mkdir -p /etc/bash_completion.d && \
 ENV DBCTL_HOME=${DATA_HOME}/dbctl
 ENV DBCTL_LOG_HOME=${LOG_HOME}/dbctl
 ENV DBCTL_LOG_FILE=${DBCTL_LOG_HOME}/dbctl.log
-ADD resources/dbctl/dbctl /usr/local/bin/
-RUN chmod +x /usr/local/bin/dbctl && \
-    mkdir -p "$DBCTL_HOME" && \
+ADD --chmod=0755 resources/dbctl/dbctl /usr/local/bin/
+RUN echo "Create dbctl log Home" && \
     mkdir -p "$DBCTL_LOG_HOME" && \
     touch "$DBCTL_LOG_FILE" && \
     chmod a+w "$DBCTL_LOG_FILE"
 
+
 # The directory where to dump pg dump backup
 # The os user is always postgres
 ENV PG_DUMP_DATA=${DATA_HOME}/pgdump
-RUN mkdir -p ${PG_DUMP_DATA} && \
-    chown -R postgres ${PG_DUMP_DATA}
 
 
 #############################
@@ -300,7 +304,10 @@ RUN envsubst < /etc/postgresql/postgresql.conf.template > /etc/postgresql/postgr
 # PgData is not set in /var/lib/postgresql/data
 # to be able to mount only one volume
 # if more saved data are needed
+# Don't create it, the owner should be the user that starts
+# it will create it if needed
 ENV PGDATA=${DATA_HOME}/pgdata
+
 
 # Database Init Scripts
 # The (*.sql, *.sql.gz, or *.sh) init scripts
@@ -327,7 +334,7 @@ ADD resources/postgres/script/* /script/
 RUN chmod 0777 /home && \
     chmod -R 0777 /var/log && \
     chmod 0777 /run && \
-    echo "Add the group as writer" && \
+    echo "Add the group as config writer" && \
     chmod g+w /etc/postgresql && \
     echo "Add the WSL user" && \
     groupadd -g 1000 wsl && \

@@ -39,3 +39,4 @@ echo_warning() {
 
 export -f echo_info
 export -f echo_err
+export -f cli_name
