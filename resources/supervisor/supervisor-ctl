@@ -1,12 +1,19 @@
 #!/bin/bash
 
-# Env
-# .bashrc to bring the connection environments
-. /root/.bashrc
 
 SUPERVISOR_CONF_PATH=${SUPERVISOR_CONF_PATH:-/supervisord.conf}
 
 LOG_HOME=${LOG_HOME:-/var/log}
+
+# Get the bash environments
+for i in /etc/profile.d/*.sh; do
+  if [ -r "$i" ]; then
+    # shellcheck disable=SC1090
+    . "$i"
+  fi
+done
+unset i
+
 
 # Create log dirs
 # The log directory are not created and just stop supervisor
@@ -25,6 +32,7 @@ for LOG in "${LOGS[@]}"; do
     touch "$LOG"
 done
 
+export POSTGRES_ARGS="${*}"
 
 # we set the `c` to avoid the below warning:
 # UserWarning: Supervisord is running as root and it is searching

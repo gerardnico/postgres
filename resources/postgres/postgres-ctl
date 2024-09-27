@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 # This script will:
 # * give the environment to the `postgres` process
 # * configure the extensions and external services for postgres
@@ -8,9 +10,6 @@
 # https://github.com/docker-library/postgres/blob/d08757ccb56ee047efd76c41dbc148e2e2c4f68f/16/bookworm/docker-entrypoint.sh#L161
 #
 
-# Env
-# .bashrc to bring an environment as if it was in the shell
-. /root/.bashrc
 
 # Pg Cron Conf
 if [ -n "$PG_CRON_DB" ]; then

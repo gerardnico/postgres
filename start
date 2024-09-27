@@ -4,8 +4,8 @@ set -euo pipefail
 
 # Set -e DOKU_DOCKER_STRICT=false to debug
 
-# The entrypoint script is made so that any options passed with the `-c` flag
-# will be passed along to the postgres server daemon.
+# The supervisor-ctl script is made so that any arguments will be passed along to the postgres server daemon
+# If you pass for instance `-c` flags, you will change the postgres configuration
 
 docker run \
   --name postgres \
@@ -17,7 +17,8 @@ docker run \
   --user 1000:1000 \
   -e POSTGRES_PASSWORD=welcome \
   -v "$PWD"/pgdata:/data \
-  -c shared_buffers=256MB \
-  -c max_connections=200 \
   "${DOCKER_REGISTRY:-docker.io}"/"${DOCKER_USER}"/"${DOCKER_REPO}":"$DOCKER_TAG"
+  supervisor-ctl \
+  -c shared_buffers=256MB \
+  -c max_connections=200
 
