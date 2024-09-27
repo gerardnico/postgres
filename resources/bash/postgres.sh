@@ -1,4 +1,6 @@
-# ~/.bashrc: executed by bash(1) for non-login shells.
+# The base Postgres image does not use the postgress environment variable
+# Postgres Local Connection env
+# so that when logged in, we can connect automatically and wal-g also
 
 ############################
 # Docker/Conf env
@@ -25,20 +27,3 @@ export PGDATABASE="${POSTGRES_DB}"
 export PG_COLOR=always
 
 
-export LS_OPTIONS='--color=auto'
-# eval "$(dircolors)"
-alias ls='ls $LS_OPTIONS'
-alias ll='ls $LS_OPTIONS -l'
-alias l='ls $LS_OPTIONS -lA'
-
-# Some more alias to avoid making mistakes:
-# alias rm='rm -i'
-# alias cp='cp -i'
-# alias mv='mv -i'
-
-function echo_err() {
-  RED='\033[0;31m'
-  NC='\033[0m' # No Color
-  echo -e "${RED}$1${NC}" >&2
-}
-export -f echo_err

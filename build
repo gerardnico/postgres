@@ -1,16 +1,8 @@
 #!/usr/bin/env bash
+
 set -e
 
-cd "$(dirname "$0")/."
+docker build . -t \
+  "${DOCKER_REGISTRY:-docker.io}"/"${DOCKER_USER}"/"${DOCKER_REPO}":"$DOCKER_TAG"
 
-# 16.3-1
-# where 16.3 is the postgres version
-# and -1 is our release
-VERSION=16.3-v1
 
-# Build or exit
-docker build . -t gerardnico/postgres:"$VERSION" || exit 1
-
-# Push
-# docker push gerardnico/postgres:"$VERSION"
-# docker push gerardnico/postgres:16.3-v1

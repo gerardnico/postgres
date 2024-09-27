@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Set -e DOKU_DOCKER_STRICT=false to debug
+
+# The entrypoint script is made so that any options passed with the `-c` flag
+# will be passed along to the postgres server daemon.
+
+docker run \
+  --name postgres \
+  --rm \
+  -d \
+  -p 5434:5432 \
+  -p 9187:9187 \
+  --env-file secret.env \
+  --user 1000:1000 \
+  -e POSTGRES_PASSWORD=welcome \
+  -v "$PWD"/pgdata:/data \
+  -c shared_buffers=256MB \
+  -c max_connections=200 \
+  "${DOCKER_REGISTRY:-docker.io}"/"${DOCKER_USER}"/"${DOCKER_REPO}":"$DOCKER_TAG"
+

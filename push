@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# Push
+docker push gerardnico/postgres:"$DOCKER_TAG"

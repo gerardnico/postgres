@@ -7,6 +7,8 @@
 
 ### Docker
 
+Make a copy of the [secxx.env](secxx.env.dist) file to `secret.env`
+
 * To run with `pgdata` (/var/lib/postgresql/data) on the [disk](https://github.com/docker-library/docs/blob/master/postgres/README.md#where-to-store-data)
 
 ```bash

@@ -1,7 +1,8 @@
-# Declare build-time variables
+# Postgres
+# For ref and Dockerfile example, see postgres-docker
 
 # version of this file
-ARG IMAGE_VERSION=1.0.0
+ARG IMAGE_VERSION=latest
 # PG version
 ARG PG_MAJOR_VERSION=16
 ARG PG_VERSION=16.3
@@ -106,6 +107,7 @@ ENTRYPOINT ["wal-g"]
 ###############################################
 FROM postgres:${PG_DOCKER_TAG} as final
 
+# Arg may be set wherever you want it
 ARG IMAGE_VERSION
 ARG PG_EXPORTER_VERSION
 ARG PG_VERSION
@@ -115,28 +117,54 @@ ARG WALG_VERSION
 ARG SQL_EXPORTER_VERSION
 ARG LOG_HOME
 
-
-
-##############
-# Common Package
-###############
-RUN apt-get update && apt-get install --no-install-recommends -y \
-    bash \
-    curl \
-    ca-certificates \
-    unzip \
-    bzip2 \
-    # Templating with envsubst
-    gettext
-
-###############################################
-# WAL-g, WAL archiving
-# See postgres-wal-archiving.md
-############################################################################################
-COPY --from=wal-g /usr/local/bin/wal-g /usr/local/bin/wal-g
 ARG ARCHIVE_MODE=on
 ARG ARCHIVE_TIMEOUT=3600
 
+####################################
+# Prebuild
+####################################
+# pg-safeupdate extension
+COPY --from=pg-safeupdate /tmp/*.deb /tmp
+RUN apt-get install --no-install-recommends -y /tmp/*.deb
+
+# Wal-g, WAL archiving
+# See postgres-wal-archiving.md
+COPY --from=wal-g /usr/local/bin/wal-g /usr/local/bin/wal-g
+
+####################################
+# Package
+# At the top so that we don't need to run it again if we change the conf
+####################################
+RUN apt-get update && \
+    echo "Common tool" && \
+    apt-get install --no-install-recommends -y \
+        bash \
+        curl \
+        ca-certificates \
+        unzip \
+        bzip2 && \
+    echo "Templating with envsubst (in gettext)" && \
+    apt-get install --no-install-recommends -y gettext && \
+    echo "Supervisor" && \
+    apt-get install --no-install-recommends -y supervisor && \
+    echo "PG extension (cron, pgvector, plpython extension)" && \
+    apt-get install --no-install-recommends -y \
+        postgresql-${PG_MAJOR}-cron \
+        postgresql-${PG_MAJOR}-pgvector \
+        python3 \
+        postgresql-plpython3-${PG_MAJOR}
+
+
+##############
+# Labels
+# https://docs.docker.com/reference/dockerfile/#label
+# This labels are used by Github
+####################################
+# * connect the repo
+LABEL org.opencontainers.image.source="https://github.com/gerardnico/postgres"
+# * set a description
+LABEL org.opencontainers.image.description="Postgres in Docker"
+# * version
 LABEL image-version=${IMAGE_VERSION}
 LABEL walg-version=${WALG_VERSION}
 LABEL pg-version=${PG_VERSION}
@@ -162,14 +190,16 @@ ENV LC_COLLATE=C.UTF-8
 # Gnu https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
 ENV TZ 'Etc/UTC'
 
-
-
+#####################################
+# Postgres CLI (bash -l)
+#####################################
+# The base Postgres image does not use the postgress environment variable
 # Postgres Local Connection env
 # so that when logged in, we can connect automatically and wal-g also
-ADD resources/bash/.bashrc /root/.bashrc
+ADD resources/bash/* /etc/profile.d
 
 ####################################
-# Prometheus exporter
+# Postgres Prometheus exporter
 # https://github.com/prometheus-community/postgres_exporter
 ####################################
 RUN curl -L https://github.com/prometheus-community/postgres_exporter/releases/download/v${PG_EXPORTER_VERSION}/postgres_exporter-${PG_EXPORTER_VERSION}.linux-amd64.tar.gz -o postgres_exporter.tar.gz && \
@@ -181,8 +211,7 @@ RUN curl -L https://github.com/prometheus-community/postgres_exporter/releases/d
 # The postgres_exporter port
 EXPOSE 9187
 # The entrypoint
-ADD resources/postgres_exporter/postgres-exporter-ctl /usr/local/bin
-RUN chmod +x /usr/local/bin/postgres-exporter-entrypoint.sh
+ADD --chmod=0755 resources/postgres_exporter/postgres-exporter-ctl /usr/local/bin
 
 ####################################
 # Sql exporter
@@ -199,8 +228,8 @@ RUN tar -xzvf /tmp/sql_exporter.tar.gz --strip-components=1 --no-anchored sql_ex
 
 EXPOSE 9399
 # The entrypoint
-ADD resources/sql_exporter/sql-exporter /usr/local/bin
-RUN chmod +x /usr/local/bin/sql-exporter-entrypoint.sh
+ADD resources/sql_exporter/sql-exporter-ctl /usr/local/bin
+RUN chmod +x /usr/local/bin/sql-exporter-ctl
 # The conf (conf is copied in the data directory at start)
 # the end / in the target is important to tell that this is a directory
 ADD resources/sql_exporter/* /sql_exporter/
@@ -235,19 +264,31 @@ ENV PG_DUMP_DATA=${DATA_HOME}/pgdump
 RUN mkdir -p ${PG_DUMP_DATA} && \
     chown -R postgres ${PG_DUMP_DATA}
 
-#############################
-## Docker Entrypoint
-############################
-ADD resources/entrypoint/entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/entrypoint.sh # basic entrypoint
-ENTRYPOINT ["entrypoint.sh"]
 
 #############################
 ## Postgres
 #############################
 ## wrapper around docker-entrypoint.sh
-ADD resources/postgres/postregs-ctl /usr/local/bin/
-RUN chmod +x /usr/local/bin/postgres-entrypoint.sh
+ADD --chmod=0755 resources/postgres/postgres-ctl /usr/local/bin/
+
+# Postgres ENV
+# Default connection variable for postgres (psql, pg_dump, ...) and wal-g uses them also
+# Pg Doc: https://www.postgresql.org/docs/current/libpq-envars.html
+# Wal-g doc: https://github.com/wal-g/wal-g/blob/master/docs/PostgreSQL.md#configuration
+# Docker/Conf env: https://github.com/docker-library/docs/blob/master/postgres/README.md#environment-variables
+ENV PGHOST '/var/run/postgresql'
+ENV PGOPTIONS ''
+ENV PGUSER 'postgres'
+ENV PGPORT 5432
+# `postgres` is the default database name, is always present
+# and is the default of all extensions as stated here
+# https://www.postgresql.org/docs/9.1/creating-cluster.html
+ENV PGDATABASE 'postgres'
+# PGPASSWORD is not required to connect from localhost
+
+# PG restore https://www.postgresql.org/docs/current/app-pgrestore.html#id-1.9.4.19.7
+# value may be always, auto and never
+ENV PG_COLOR 'always'
 
 # All date are UTC (Os, Database, ...)
 # https://www.postgresql.org/docs/current/libpq-envars.html
@@ -279,26 +320,17 @@ ADD resources/postgres/initdb/* /docker-entrypoint-initdb.d
 # the end / in the target is important to tell that this is a directory
 ADD resources/postgres/script/* /script/
 
-# pg-safeupdate extension
-COPY --from=pg-safeupdate /tmp/*.deb /tmp
-RUN apt-get install --no-install-recommends -y /tmp/*.deb
 
-# cron, pgvector, plpython extension
-RUN apt-get install --no-install-recommends -y \
-    postgresql-${PG_MAJOR}-cron \
-    postgresql-${PG_MAJOR}-pgvector \
-    python3 \
-    postgresql-plpython3-${PG_MAJOR}
 
 ####################################
 # Supervisor
 ####################################
 ADD resources/supervisor/supervisord.conf .
-ADD resources/supervisor/supervisor-ctl /usr/local/bin/
-RUN chmod +x /usr/local/bin/supervisor-entrypoint.sh && \
-    apt-get install --no-install-recommends -y supervisor
+ADD --chmod=0755 resources/supervisor/supervisor-ctl /usr/local/bin/
 
 EXPOSE 9001
+
+HEALTHCHECK --interval=2s --timeout=2s --retries=10 CMD pg_isready -U postgres -h localhost
 
 ################################# \
 # Clean
