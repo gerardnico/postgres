@@ -39,4 +39,7 @@ export POSTGRES_ARGS="${*}"
 # for its configuration file in default locations (including its current working directory);
 # you probably want to specify a "-c" argument specifying
 # an absolute path to a configuration file for improved security.
-supervisord -c "$SUPERVISOR_CONF_PATH"
+#
+# We run it with `exec` so that it respond to Ctrl+z (SIGINT)
+#
+exec supervisord -c "$SUPERVISOR_CONF_PATH"

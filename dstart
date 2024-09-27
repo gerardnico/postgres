@@ -6,18 +6,18 @@ set -euo pipefail
 
 # The supervisor-ctl script is made so that any arguments will be passed along to the postgres server daemon
 # If you pass for instance `-c` flags, you will change the postgres configuration
-
+# -d \
 docker run \
   --name postgres \
   --rm \
-  -d \
   -p 5434:5432 \
   -p 9187:9187 \
   --env-file secret.env \
   --user 1000:1000 \
+  --group-add postgres \
   -e POSTGRES_PASSWORD=welcome \
   -v "$PWD"/pgdata:/data \
-  "${DOCKER_REGISTRY:-docker.io}"/"${DOCKER_USER}"/"${DOCKER_REPO}":"$DOCKER_TAG"
+  "${DOCKER_REGISTRY:-docker.io}"/"${DOCKER_USER}"/"${DOCKER_REPO}":"$DOCKER_TAG" \
   supervisor-ctl \
   -c shared_buffers=256MB \
   -c max_connections=200

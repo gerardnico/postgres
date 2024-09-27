@@ -151,8 +151,41 @@ RUN apt-get update && \
         postgresql-${PG_MAJOR}-cron \
         postgresql-${PG_MAJOR}-pgvector \
         python3 \
-        postgresql-plpython3-${PG_MAJOR}
+        postgresql-plpython3-${PG_MAJOR} && \
+    echo "Cleaning" && \
+    rm -rf /var/lib/apt/lists/* /tmp/* && \
+    # No apt-get can be used from this point or you need to run apt-get update \
+    # to update the repo again
+    apt-get clean
 
+
+####################################
+# Download Installation
+# At the top so that we don't need to run it again if we change the conf
+####################################
+# We use ADD because it put the downloaded asset in a cache
+# Restic
+ADD "https://github.com/restic/restic/releases/download/v${RESTIC_VERSION}/restic_${RESTIC_VERSION}_linux_amd64.bz2" \
+    restic.bz2
+RUN bzip2 -d restic.bz2 && \
+    chmod +x restic && \
+    mv restic /usr/local/bin/
+
+# Postgres exporter
+ADD "https://github.com/prometheus-community/postgres_exporter/releases/download/v${PG_EXPORTER_VERSION}/postgres_exporter-${PG_EXPORTER_VERSION}.linux-amd64.tar.gz" \
+    postgres_exporter.tar.gz
+RUN tar -xzvf postgres_exporter.tar.gz --strip-components=1 --no-anchored postgres_exporter && \
+    rm postgres_exporter.tar.gz && \
+    chmod +x postgres_exporter && \
+    mv postgres_exporter /usr/local/bin/
+
+# Sql Exporter
+ADD "https://github.com/burningalchemist/sql_exporter/releases/download/${SQL_EXPORTER_VERSION}/sql_exporter-${SQL_EXPORTER_VERSION}.linux-amd64.tar.gz" \
+    /tmp/sql_exporter.tar.gz
+RUN tar -xzvf /tmp/sql_exporter.tar.gz --strip-components=1 --no-anchored sql_exporter && \
+    rm /tmp/sql_exporter.tar.gz && \
+    chmod +x sql_exporter && \
+    mv sql_exporter /usr/local/bin/
 
 ##############
 # Labels
@@ -200,12 +233,6 @@ ADD resources/bash/* /etc/profile.d
 # Postgres Prometheus exporter
 # https://github.com/prometheus-community/postgres_exporter
 ####################################
-RUN curl -L https://github.com/prometheus-community/postgres_exporter/releases/download/v${PG_EXPORTER_VERSION}/postgres_exporter-${PG_EXPORTER_VERSION}.linux-amd64.tar.gz -o postgres_exporter.tar.gz && \
-    tar -xzvf postgres_exporter.tar.gz --strip-components=1 --no-anchored postgres_exporter && \
-    rm postgres_exporter.tar.gz && \
-    chmod +x postgres_exporter && \
-    mv postgres_exporter /usr/local/bin/
-
 # The postgres_exporter port
 EXPOSE 9187
 ADD --chmod=0755 resources/postgres_exporter/postgres-exporter-ctl /usr/local/bin
@@ -215,17 +242,11 @@ ADD --chmod=0755 resources/postgres_exporter/postgres-exporter-ctl /usr/local/bi
 # https://github.com/burningalchemist/sql_exporter
 # Why? Linked from postgres_exporter
 ####################################
-ADD "https://github.com/burningalchemist/sql_exporter/releases/download/${SQL_EXPORTER_VERSION}/sql_exporter-${SQL_EXPORTER_VERSION}.linux-amd64.tar.gz" \
-    /tmp/sql_exporter.tar.gz
-RUN tar -xzvf /tmp/sql_exporter.tar.gz --strip-components=1 --no-anchored sql_exporter && \
-    rm /tmp/sql_exporter.tar.gz && \
-    chmod +x sql_exporter && \
-    mv sql_exporter /usr/local/bin/ && \
-    mkdir -p /var/log/sql-exporter/
+RUN mkdir -p /var/log/sql-exporter/
 
 EXPOSE 9399
-ADD resources/sql_exporter/sql-exporter-ctl /usr/local/bin
-RUN chmod +x /usr/local/bin/sql-exporter-ctl
+ADD --chmod=0755 resources/sql_exporter/sql-exporter-ctl /usr/local/bin
+
 # The conf (conf is copied in the data directory at start)
 # the end / in the target is important to tell that this is a directory
 ADD resources/sql_exporter/* /sql_exporter/
@@ -233,11 +254,7 @@ ADD resources/sql_exporter/* /sql_exporter/
 #####################################
 # Restic
 #####################################
-RUN curl -L https://github.com/restic/restic/releases/download/v${RESTIC_VERSION}/restic_${RESTIC_VERSION}_linux_amd64.bz2 -o restic.bz2 && \
-    bzip2 -d restic.bz2 && \
-    chmod +x restic && \
-    mv restic /usr/local/bin/ && \
-    mkdir -p /etc/bash_completion.d && \
+RUN mkdir -p /etc/bash_completion.d && \
     restic generate --bash-completion /etc/bash_completion.d/restic
 
 ##################################
@@ -301,22 +318,35 @@ ADD resources/postgres/script/* /script/
 
 
 ####################################
+# Third User (ie wsl 1000:1000)
+####################################
+# Gives permission to the running user to create its own HOME
+# Gives permission to all users to create log
+# All users can write in /run because supervisor will write socket/file in it (Error: Cannot open an HTTP server: socket.error reported errno.EACCES)
+# Add the user 1000:1000 (wsl) and give it the postgres group
+RUN chmod 0777 /home && \
+    chmod -R 0777 /var/log && \
+    chmod 0777 /run && \
+    echo "Add the group as writer" && \
+    chmod g+w /etc/postgresql && \
+    echo "Add the WSL user" && \
+    groupadd -g 1000 wsl && \
+    useradd -m --uid=1000 --gid 1000 -s /bin/bash wsl
+
+
+####################################
 # Supervisor
 ####################################
 ADD resources/supervisor/supervisord.conf .
 ADD --chmod=0755 resources/supervisor/supervisor-ctl /usr/local/bin/
+# We don't expose the supervisor webserver for now
+# EXPOSE 9001
 
-EXPOSE 9001
 
+####################################
+# Docker
+####################################
 HEALTHCHECK --interval=2s --timeout=2s --retries=10 CMD pg_isready -U postgres -h localhost
 
-################################# \
-# Clean
-#################################
-RUN rm -rf /var/lib/apt/lists/* /tmp/* \
-    # No apt-get can be used from this point or you need to run apt-get update \
-    # to update the repo again
-    && apt-get clean
-
 # CMD
-CMD ["supervisor-ctl.sh"]
+CMD ["supervisor-ctl"]
