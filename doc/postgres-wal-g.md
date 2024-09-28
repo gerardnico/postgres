@@ -6,13 +6,7 @@
 
 ### Create a container
 
-
-```bash
-# windows
-docker run --env-file secret.env --name postgres -d -p 5434:5432 -v C:\temp\data:/data postgres-final
-# git bash
-docker run --env-file secret.env --name postgres -d -p 5434:5432 -v C:/temp/data:/data postgres-final
-```
+See [](../dstart)
 
 
 ### Connect
@@ -25,7 +19,7 @@ docker exec -it postgres bash
 winpty docker exec -it postgres bash
 ```
 
-* SQL Client: localhost: 5434
+* SQL Client: localhost: 5432
 
 ### Make base backup
 
@@ -35,7 +29,7 @@ wal-g backup-push -f $PGDATA
 
 ### Monitoring
 
-Check Stats archiver Informations
+Check Stats archiver Information
 
 ```bash
 echo "select * from pg_stat_archiver;" | psql -x -U $POSTGRES_USER $POSTGRES_DB -a -q -f -
@@ -137,7 +131,7 @@ More [Recovery function](https://www.postgresql.org/docs/current/functions-admin
 
 https://github.com/wal-g/wal-g/blob/a2c015d8d22289877f548c3ee2a9cbed5695ce33/docs/PostgreSQL.md#wal-verify
 
-```
+```bash
 wal-g backup-list
 wal-g wal-show
 wal-g wal-verify integrity timeline
@@ -151,7 +145,7 @@ during the time.
 
 ## wal-g wal-push
 
-```
+```bash
 export WALG_PREVENT_WAL_OVERWRITE=1; wal-g wal-push $PGDATA/pg_wal/00000003000000000000000B
 ```
 

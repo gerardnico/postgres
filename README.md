@@ -95,6 +95,7 @@ WALG_COMPRESSION_METHOD = brotli
 You can't restore from the database as it expects a manual confirmation.
 
 ```sql
+-- noinspection SqlResolve
 CALL public.dbctl('dump-ls');
 ```
 
@@ -230,4 +231,12 @@ When developing, use the `d` (docker) command to:
 * `start`: [dstart](dstart)
 * `push`: [dpush](dpush)
 * `exec` into : [dexec](dexec)
+
+
+## Kubernetes
+
+"docker-ensure-initdb.sh" as a Kubernetes "init container" 
+to ensure the provided database directory is initialized; see also "startup probes" for an alternative solution
+(no-op if database is already initialized)
+[Ref](https://github.com/docker-library/postgres/blob/d08757ccb56ee047efd76c41dbc148e2e2c4f68f/16/bookworm/docker-ensure-initdb.sh)
 

@@ -364,6 +364,8 @@ HEALTHCHECK --interval=2s --timeout=2s --retries=10 CMD pg_isready --username po
 
 # Entrypoint
 # https://github.com/docker-library/postgres/blob/d08757ccb56ee047efd76c41dbc148e2e2c4f68f/16/bookworm/docker-entrypoint.sh
+# example of how to use "docker-entrypoint.sh" to extend/reuse the initialization behavior
+# https://github.com/docker-library/postgres/blob/d08757ccb56ee047efd76c41dbc148e2e2c4f68f/16/bookworm/docker-ensure-initdb.sh
 
 # CMD
 CMD ["supervisor-ctl"]
