@@ -12,15 +12,24 @@ set -euo pipefail
 MOUNT_POINT="$PWD"/mount
 mkdir -p "$MOUNT_POINT"
 
+# Secret can also be from a mounted file
+# -e POSTGRES_PASSWORD_FILE=/run/secrets/postgres-passwd
+
+## Memory
+# The default /dev/shm size for containers is 64MB. If the shared memory is exhausted you will encounter
+# ERROR:  could not resize shared memory segment . . . : No space left on device.
+# You will want to pass --shm-size=256MB
+
+# Note the user will start the postgres process
 docker run \
   --name postgres \
   --rm \
-  -p 5432:5432 \
+  -p "$POSTGRES_PORT":5432 \
   -p 9187:9187 \
   --env-file secret.env \
   --user 1000:1000 \
   --group-add postgres \
-  -e POSTGRES_PASSWORD=welcome \
+  -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
   -v "${MOUNT_POINT}":/data \
   "${DOCKER_REGISTRY:-docker.io}"/"${DOCKER_USER}"/"${DOCKER_REPO}":"$DOCKER_TAG" \
   supervisor-ctl \

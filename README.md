@@ -21,7 +21,24 @@ Error?
 ```bash
 docker logs postgres
 ```
+## Process
 
+```bash
+8.72656 MB postgres: background writer
+8.58203 MB postgres: autovacuum launcher
+8.41406 MB postgres: logical replication launcher
+8.05469 MB postgres: archiver failed on
+6.19141 MB postgres: logger
+39.082 MB postgres -c config_file=/etc/postgresql/postgresql.conf -c
+3.57812 MB /bin/bash /usr/local/bin/postgres-ctl postgres -c
+31.3359 MB /usr/bin/python3 /usr/bin/supervisord -c /supervisord.conf
+18.8984 MB postgres: checkpointer
+14.5 MB postgres: walwriter
+14.4492 MB postgres: pg_cron launcher
+0.921875 MB /bin/sh
+0.882812 MB /usr/bin/tail -f /var/log/postgres/postgres.log
+Total: 101.2MiB
+```
 ## Dump
 
 ### How to perform a dump restore

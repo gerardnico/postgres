@@ -3,6 +3,11 @@
 
 set -euo pipefail
 
+if [ $1 == "" ]; then
+  echo "Usage: dexec <command>"
+  exit 1
+fi
+
 
 # The supervisor-ctl script is made so that any arguments will be passed along to the postgres server daemon
 # If you pass for instance `-c` flags, you will change the postgres configuration

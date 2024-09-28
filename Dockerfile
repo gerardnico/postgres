@@ -225,6 +225,8 @@ ENV LC_CTYPE=C.UTF-8
 ENV LC_COLLATE=C.UTF-8
 # TZ is the OS env
 # Gnu https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
+# TZ is supported by Postgres
+# Postgres: https://www.postgresql.org/docs/current/app-initdb.html#id-1.9.5.3.7
 ENV TZ='Etc/UTC'
 
 #####################################
@@ -298,8 +300,12 @@ ENV PGTZ='Etc/UTC'
 # https://github.com/docker-library/docs/blob/master/postgres/README.md#database-configuration
 # postgresql.conf is a template and accepts env so that we can be consistent
 # Don't add secret in their
-ADD resources/postgres/postgresql.conf /etc/postgresql/postgresql.conf.template
-RUN envsubst < /etc/postgresql/postgresql.conf.template > /etc/postgresql/postgresql.conf
+# The conf directory default to `pgdata`
+ENV POSTGRES_CONF_DIR=/etc/postgresql/
+ADD resources/postgres/conf/postgresql.conf ${POSTGRES_CONF_DIR}/postgresql.conf.template
+RUN envsubst < ${POSTGRES_CONF_DIR}/postgresql.conf.template > ${POSTGRES_CONF_DIR}/postgresql.conf
+ADD resources/postgres/conf/pg_hba.conf ${POSTGRES_CONF_DIR}/pg_hba.conf.template
+RUN envsubst < ${POSTGRES_CONF_DIR}/pg_hba.conf.template > ${POSTGRES_CONF_DIR}/pg_hba.conf
 
 # PgData is not set in /var/lib/postgresql/data
 # to be able to mount only one volume
