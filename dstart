@@ -29,7 +29,8 @@ docker run \
   --env-file secret.env \
   --user 1000:1000 \
   --group-add postgres \
-  -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+  -e PGUSER="$PGUSER" \
+  -e PGPASSWORD="$PGPASSWORD" \
   -v "${MOUNT_POINT}":/data \
   "${DOCKER_REGISTRY:-docker.io}"/"${DOCKER_USER}"/"${DOCKER_REPO}":"$DOCKER_TAG" \
   supervisor-ctl \

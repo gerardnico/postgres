@@ -2,43 +2,31 @@
 
 
 
-
 ## Run
 
 ### Docker
 
-Make a copy of the [secxx.env](secxx.env.dist) file to `secret.env`
+Set your value in the [.env](.env) file
 
-* To run with `pgdata` (/var/lib/postgresql/data) on the [disk](https://github.com/docker-library/docs/blob/master/postgres/README.md#where-to-store-data)
+* To run with `pgdata` at `/data` on the [disk](https://github.com/docker-library/docs/blob/master/postgres/README.md#where-to-store-data)
 
 ```bash
-# on Cygwin
 docker rm postgres
-docker run --env-file secret.env --name postgres -d -p 5434:5432 -p 9187:9187 -v 'C:\temp\data':/data gerardnico/postgres:16.3-v1
+docker run \
+  --env-file .env \
+  --name postgres \
+  -d \
+  -p 5432:5432 \
+  -p 9187:9187 \
+  -v $PWD/mount:/data \
+  gerardnico/postgres:16.3-v1
 ```
 
 Error?
 ```bash
 docker logs postgres
 ```
-## Process
 
-```bash
-8.72656 MB postgres: background writer
-8.58203 MB postgres: autovacuum launcher
-8.41406 MB postgres: logical replication launcher
-8.05469 MB postgres: archiver failed on
-6.19141 MB postgres: logger
-39.082 MB postgres -c config_file=/etc/postgresql/postgresql.conf -c
-3.57812 MB /bin/bash /usr/local/bin/postgres-ctl postgres -c
-31.3359 MB /usr/bin/python3 /usr/bin/supervisord -c /supervisord.conf
-18.8984 MB postgres: checkpointer
-14.5 MB postgres: walwriter
-14.4492 MB postgres: pg_cron launcher
-0.921875 MB /bin/sh
-0.882812 MB /usr/bin/tail -f /var/log/postgres/postgres.log
-Total: 101.2MiB
-```
 ## Dump
 
 ### How to perform a dump restore
@@ -86,7 +74,7 @@ Log is on at `$PGDATA/log`
 
 ## Env
 
-When creating the image. See [secxx](secxx.env.dist)
+When creating the image. See [.env](.env)
 
 ```ini
 # See environment variables documentation \
@@ -116,12 +104,6 @@ The process that are running in the container and their owner.
 
 ```bash
 UID        PID  PPID  C STIME TTY          TIME CMD
-root         1     0  0 14:14 ?        00:00:00 /bin/bash /usr/local/bin/entrypoint.sh overmind start
-root         7     1  0 14:14 ?        00:00:00 overmind start
-root        14     7  0 14:14 ?        00:00:00 tmux -C -L overmind---yqiI2DgpEldIIe3MQsPrQ new -n postgres -s - -P -F %overmind-process #{pane_id} postgres #{pane_pi
-root        20     1  0 14:14 ?        00:00:00 tmux -C -L overmind---yqiI2DgpEldIIe3MQsPrQ new -n postgres -s - -P -F %overmind-process #{pane_id} postgres #{pane_pi
-root        21    20  0 14:14 pts/0    00:00:00 sh /tmp/overmind---yqiI2DgpEldIIe3MQsPrQ/postgres
-root        23    20  0 14:14 pts/1    00:00:00 sh /tmp/overmind---yqiI2DgpEldIIe3MQsPrQ/postgres_exporter
 root        25    21  0 14:14 pts/0    00:00:00 /bin/bash /usr/local/bin/postgres-entrypoint.sh postgres -c config_file=/etc/postgresql/postgresql.conf
 root        27    23  0 14:14 pts/1    00:00:00 postgres_exporter --log.level=warn
 postgres    48    25  0 14:14 pts/0    00:00:00 postgres -c config_file=/etc/postgresql/postgresql.conf
@@ -136,6 +118,25 @@ postgres    77    48  0 14:14 ?        00:00:00 postgres: logical replication la
 postgres    78    48  0 14:14 ?        00:00:00 postgres: eraldy eraldy 172.17.0.1(47582) idle
 root        95     0  0 14:16 pts/2    00:00:00 bash
 root       323    95  0 14:20 pts/2    00:00:00 ps -ef
+```
+
+
+Memory:
+```bash
+8.72656 MB postgres: background writer
+8.58203 MB postgres: autovacuum launcher
+8.41406 MB postgres: logical replication launcher
+8.05469 MB postgres: archiver failed on
+6.19141 MB postgres: logger
+39.082 MB postgres -c config_file=/etc/postgresql/postgresql.conf -c
+3.57812 MB /bin/bash /usr/local/bin/postgres-ctl postgres -c
+31.3359 MB /usr/bin/python3 /usr/bin/supervisord -c /supervisord.conf
+18.8984 MB postgres: checkpointer
+14.5 MB postgres: walwriter
+14.4492 MB postgres: pg_cron launcher
+0.921875 MB /bin/sh
+0.882812 MB /usr/bin/tail -f /var/log/postgres/postgres.log
+Total: 101.2MiB
 ```
 
 ## Database: Postgres
@@ -219,38 +220,14 @@ The SQL exporter is `optional`
 
 Change the config files at: `/data/sql_exporter`
 
-```bash
-overmind restart sql_exporter
-```
-
-
-## Dev
-
-When developing,
-
-* copy the [secxx.env](secxx.env.dist) to `secret.env`
-* set your value
-* and use the [rebuild.com](build.cmd) to rebuild the image.
-
-## Overmind (Process manager)
-
-```bash
-OVERMIND_ENV='OVERMIND_CAN_DIE=sql_exporter,postgres_exporter OVERMIND_SHOW_TIMESTAMPS=1'
-```
-
-You can:
-
-* Disable the port: [OVERMIND_NO_PORT](https://github.com/DarthSim/overmind?tab=readme-ov-file#disabling-port)
-* Disable process to
-  run: [OVERMIND_IGNORED_PROCESSES](https://github.com/DarthSim/overmind?tab=readme-ov-file#not-running-the-specified-processes)
-* Scale the
-  process: [OVERMIND_FORMATION](https://github.com/DarthSim/overmind?tab=readme-ov-file#scaling-processes-formation)
-* Set processes to
-  auto-restart : [OVERMIND_AUTO_RESTART](https://github.com/DarthSim/overmind?tab=readme-ov-file#auto-restarting-processes)
-* Change the log color for each
-  process: [OVERMIND_COLORS](https://github.com/DarthSim/overmind?tab=readme-ov-file#specifying-the-colors)
-* Add timestamp: [OVERMIND_SHOW_TIMESTAMPS](https://github.com/DarthSim/overmind?tab=readme-ov-file#show-timestamps)
 
 
 
+## How to Develop
+
+When developing, use the `d` (docker) command to:
+* `build`: [dbuild](dbuild)
+* `start`: [dstart](dstart)
+* `push`: [dpush](dpush)
+* `exec` into : [dexec](dexec)
 

@@ -359,7 +359,11 @@ ADD --chmod=0755 resources/supervisor/supervisor-ctl /usr/local/bin/
 ####################################
 # Docker
 ####################################
-HEALTHCHECK --interval=2s --timeout=2s --retries=10 CMD pg_isready -U postgres -h localhost
+# pg_isready issues a connection check to a PostgreSQL database.
+HEALTHCHECK --interval=2s --timeout=2s --retries=10 CMD pg_isready --username postgres --host localhost
+
+# Entrypoint
+# https://github.com/docker-library/postgres/blob/d08757ccb56ee047efd76c41dbc148e2e2c4f68f/16/bookworm/docker-entrypoint.sh
 
 # CMD
 CMD ["supervisor-ctl"]

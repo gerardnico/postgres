@@ -19,6 +19,16 @@ Allow the user "foo" from host 192.168.1.100 to connect to the primary
 host    replication     foo             192.168.1.100/32        md5
 ```
 
+## Location (Default and conf)
+
+```bash
+$PGDATA/pg_hba.conf
+```
+It can be set via the [hba_file config](https://www.postgresql.org/docs/current/runtime-config-file-locations.html) 
+```bash
+postgres -c hba_file=/etc/postgresql/pg_hba.conf
+```
+
 ## Docker
 
 You can set the method for all
@@ -27,6 +37,8 @@ host [via the POSTGRES_HOST_AUTH_METHOD](https://github.com/docker-library/docs/
 ```bash
 echo "host all all all $POSTGRES_HOST_AUTH_METHOD" >> pg_hba.conf
 ```
+
+It's implemented in the [pg_setup_hba_conf function](https://github.com/docker-library/postgres/blob/d08757ccb56ee047efd76c41dbc148e2e2c4f68f/16/bookworm/docker-entrypoint.sh#L241)
 
 ## Format
 
