@@ -71,9 +71,7 @@ FROM pgxs_builder AS wal-g
 
 # Set environment variables
 ARG WALG_VERSION
-# https://github.com/wal-g/wal-g?tab=readme-ov-file#compression
-ENV WALG_COMPRESSION_METHOD=brotli
-ENV WALG_LIBSODIUM_KEY_TRANSFORM=base64
+
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
