@@ -2,18 +2,29 @@
 
 set -euo pipefail
 
+# Docker needs to be started from the project root
+# to mount the scripts
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+pushd "$SCRIPT_DIR/.."
 
 # What are the -c flags passed to supervisor-ctl
 # The supervisor-ctl script is made so that any arguments will be passed along to the postgres server daemon
 # If you pass for instance `-c` flags, you will change the postgres configuration
 # -d \
 
-# Create the mount point to give it the right permissions
-MOUNT_POINT="$PWD"/mount
-mkdir -p "$MOUNT_POINT"
+## Scripts need to have execution
 
-# Secret can also be from a mounted file
-# -e POSTGRES_PASSWORD_FILE=/run/secrets/postgres-passwd
+# Create the mount point to give it the right permissions
+MOUNT_POINT="$PWD/mount"
+mkdir -p "$MOUNT_POINT"
+chmod 0777 "$MOUNT_POINT"
+
+DBCTL_PATH="$PWD/resources/dbctl/dbctl"
+if [[ ! -f "$DBCTL_PATH" ]]; then
+  echo_err "dbctl not found at $DBCTL_PATH"
+  exit 1
+fi
+chmod +x "$DBCTL_PATH"
 
 ## Memory
 # The default /dev/shm size for containers is 64MB. If the shared memory is exhausted you will encounter
@@ -24,16 +35,18 @@ mkdir -p "$MOUNT_POINT"
 docker run \
   --name postgres \
   --rm \
-  -p "$POSTGRES_PORT":5432 \
+  -p "$DOCKER_POSTGRES_LOCAL_PORT":5432 \
   -p 9187:9187 \
-  --env-file secret.env \
   --user 1000:1000 \
   --group-add postgres \
-  -e PGUSER="$PGUSER" \
-  -e PGPASSWORD="$PGPASSWORD" \
+  -e POSTGRES_USER="$POSTGRES_USER" \
+  -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+  -e POSTGRES_DB="$POSTGRES_DB" \
   -v "${MOUNT_POINT}":/data \
+  --mount type=bind,source="${DBCTL_PATH}",target=/usr/local/bin/dbctl \
   "${DOCKER_REGISTRY:-docker.io}"/"${DOCKER_USER}"/"${DOCKER_REPO}":"$DOCKER_TAG" \
   supervisor-ctl \
   -c shared_buffers=256MB \
   -c max_connections=200
 
+popd

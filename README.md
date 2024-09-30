@@ -224,14 +224,9 @@ Change the config files at: `/data/sql_exporter`
 
 
 
-## How to Develop
+## How to Develop (dscript)
 
-When developing, use the `d` (docker) command to:
-* `build`: [dbuild](dbuild)
-* `start`: [dstart](dstart)
-* `push`: [dpush](dpush)
-* `exec` into : [dexec](dexec)
-
+See [dev doc](doc/dev.md)
 
 ## Kubernetes
 

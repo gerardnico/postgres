@@ -14,12 +14,15 @@ ARG PG_DOCKER_TAG=16.3
 ARG PG_SAFEUPDATE_VERSION=1.5
 ARG PG_EXTENSIONS="safeupdate"
 
-ARG WALG_VERSION=3.0.0
+# Walg
+# Os name is mandatory and may change, it's not a stand linux
+# Ubuntu works on debian
 ARG WALG_INCLUDED="false"
+ARG WALG_VERSION="v3.0.3"
+ARG WALG_OSNAME=ubuntu-20.04
 
 # https://github.com/restic/restic/releases/
 ARG RESTIC_VERSION=0.16.4
-
 
 # Postgres exporter
 # https://github.com/prometheus-community/postgres_exporter/releases
@@ -62,55 +65,19 @@ RUN make -j$(nproc)
 RUN checkinstall -D --install=no --fstrans=no --backup=no --pakdir=/tmp --nodoc
 
 
-###########################################
-# Wal-g building
-# https://github.com/wal-g/wal-g?tab=readme-ov-file#installing
-# run it
-# docker run --env-file secret.env --rm -it debianslim_wal-g
-FROM pgxs_builder AS wal-g
-
-# Set environment variables
-ARG WALG_VERSION
-
-
-# Install dependencies
-RUN apt-get update && apt-get install -y \
-    golang-go \
-    libbrotli-dev \
-    liblzo2-dev \
-    libsodium-dev \
-    && apt-get clean
-
-# Set Go environment variables
-ENV GOPATH=/go
-ENV PATH=$GOPATH/bin:/usr/local/go/bin:$PATH
-
-# Clone the WAL-G repository and checkout the specified version
-RUN mkdir -p /go/src/github.com/wal-g/wal-g &&\
-    git clone --branch v${WALG_VERSION} --single-branch https://github.com/wal-g/wal-g /go/src/github.com/wal-g/wal-g && \
-    cd /go/src/github.com/wal-g/wal-g && \
-    export USE_BROTLI=1 && \
-    export USE_LIBSODIUM=1 && \
-    export USE_LZO=1 && \
-    make deps && \
-    make pg_build && \
-    cp main/pg/wal-g /usr/local/bin/wal-g && \
-    chmod +x /usr/local/bin/wal-g
-
-ENTRYPOINT ["wal-g"]
 
 ###############################################
 # Postgres Final
 ###############################################
 FROM postgres:${PG_DOCKER_TAG} AS final
 
-# Arg may be set wherever you want it
 ARG IMAGE_VERSION
 ARG PG_EXPORTER_VERSION
 ARG PG_VERSION
 ARG PG_MAJOR_VERSION
 ARG RESTIC_VERSION
 ARG WALG_VERSION
+ARG WALG_OSNAME
 ARG SQL_EXPORTER_VERSION
 ARG LOG_HOME
 
@@ -124,9 +91,6 @@ ARG ARCHIVE_TIMEOUT=3600
 COPY --from=pg-safeupdate /tmp/*.deb /tmp
 RUN apt-get install --no-install-recommends -y /tmp/*.deb
 
-# Wal-g, WAL archiving
-# See postgres-wal-archiving.md
-COPY --from=wal-g /usr/local/bin/wal-g /usr/local/bin/wal-g
 
 ####################################
 # Package
@@ -185,6 +149,14 @@ RUN tar -xzvf /tmp/sql_exporter.tar.gz --strip-components=1 --no-anchored sql_ex
     chmod +x sql_exporter && \
     mv sql_exporter /usr/local/bin/
 
+# Walg
+ADD https://github.com/wal-g/wal-g/releases/download/$WALG_VERSION/wal-g-pg-${WALG_OSNAME}-amd64.tar.gz \
+    wal-g-pg-${WALG_OSNAME}-amd64.tar.gz
+RUN tar -zxvf wal-g-pg-${WALG_OSNAME}-amd64.tar.gz && \
+    rm wal-g-pg-${WALG_OSNAME}-amd64.tar.gz && \
+    mv wal-g-pg-${WALG_OSNAME}-amd64 /usr/local/bin/wal-g && \
+    chmod +x /usr/local/bin/wal-g
+
 ##############
 # Labels
 # https://docs.docker.com/reference/dockerfile/#label
@@ -211,7 +183,7 @@ ENV DATA_HOME=/data
 RUN echo "Create the data directory" && \
     mkdir -p "${DATA_HOME}" && \
     echo "Every user should be able to create directory in it" && \
-    chown postgres:postgres "${DATA_HOME}" && \
+    chown root:postgres "${DATA_HOME}" && \
     chmod 0777 "${DATA_HOME}"
 
 # The log home
@@ -241,7 +213,7 @@ ADD resources/bash/* /etc/profile.d
 ####################################
 # The postgres_exporter port
 EXPOSE 9187
-ADD --chmod=0755 resources/postgres_exporter/postgres-exporter-ctl /usr/local/bin
+ADD --chmod=0775 --chown=root:postgres resources/postgres_exporter/postgres-exporter-ctl /usr/local/bin
 
 ####################################
 # Sql exporter
@@ -251,7 +223,7 @@ ADD --chmod=0755 resources/postgres_exporter/postgres-exporter-ctl /usr/local/bi
 RUN mkdir -p /var/log/sql-exporter/
 
 EXPOSE 9399
-ADD --chmod=0755 resources/sql_exporter/sql-exporter-ctl /usr/local/bin
+ADD --chmod=0775 --chown=root:postgres resources/sql_exporter/sql-exporter-ctl /usr/local/bin
 
 # The conf (conf is copied in the data directory at start)
 # the end / in the target is important to tell that this is a directory
@@ -270,7 +242,7 @@ RUN mkdir -p /etc/bash_completion.d && \
 ENV DBCTL_HOME=${DATA_HOME}/dbctl
 ENV DBCTL_LOG_HOME=${LOG_HOME}/dbctl
 ENV DBCTL_LOG_FILE=${DBCTL_LOG_HOME}/dbctl.log
-ADD --chmod=0755 resources/dbctl/dbctl /usr/local/bin/
+ADD --chmod=0775 --chown=root:postgres resources/dbctl/dbctl /usr/local/bin/
 RUN echo "Create dbctl log Home" && \
     mkdir -p "$DBCTL_LOG_HOME" && \
     touch "$DBCTL_LOG_FILE" && \
@@ -286,7 +258,7 @@ ENV PG_DUMP_DATA=${DATA_HOME}/pgdump
 ## Postgres
 #############################
 ## wrapper around docker-entrypoint.sh
-ADD --chmod=0755 resources/postgres/postgres-ctl /usr/local/bin/
+ADD --chmod=0775 --chown=root:postgres resources/postgres/postgres-ctl /usr/local/bin/
 
 # Other env are set in postgres-client.sh
 # All date are UTC (Os, Database, ...)
@@ -349,7 +321,7 @@ RUN chmod 0777 /home && \
 # Supervisor
 ####################################
 ADD resources/supervisor/supervisord.conf .
-ADD --chmod=0755 resources/supervisor/supervisor-ctl /usr/local/bin/
+ADD --chmod=0775 --chown=root:postgres resources/supervisor/supervisor-ctl /usr/local/bin/
 # We don't expose the supervisor webserver for now
 # EXPOSE 9001
 

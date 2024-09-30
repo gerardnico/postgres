@@ -64,7 +64,7 @@ fi
 # They should be owned by the running user
 echo_info "Create dbctl Home and pg_pump directories"
 mkdir -p "$DBCTL_HOME"
-mkdir -p ${PG_DUMP_DATA}
+mkdir -p "${PG_DUMP_DATA}"
 
 ## Docker
 # Start the docker entrypoint

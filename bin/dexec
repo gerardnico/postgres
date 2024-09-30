@@ -3,7 +3,7 @@
 
 set -euo pipefail
 
-if [ $1 == "" ]; then
+if [ "$1" == "" ]; then
   echo "Usage: dexec <command>"
   exit 1
 fi
@@ -12,13 +12,10 @@ fi
 # The supervisor-ctl script is made so that any arguments will be passed along to the postgres server daemon
 # If you pass for instance `-c` flags, you will change the postgres configuration
 # -d \
-docker run \
-  --name postgres-exec \
-  --rm \
-  -ti \
-  --env-file secret.env \
+#--user 1000:1000 \
+docker exec \
   --user 1000:1000 \
-  --group-add postgres \
-  "${DOCKER_REGISTRY:-docker.io}"/"${DOCKER_USER}"/"${DOCKER_REPO}":"$DOCKER_TAG" \
+  -ti \
+  "$DOCKER_CONTAINER" \
   "$@"
 

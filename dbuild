@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-
-set -e
-
-docker build . -t \
-  "${DOCKER_REGISTRY:-docker.io}"/"${DOCKER_USER}"/"${DOCKER_REPO}":"$DOCKER_TAG"
-
-
