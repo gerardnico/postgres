@@ -19,6 +19,7 @@ MOUNT_POINT="$PWD/mount"
 mkdir -p "$MOUNT_POINT"
 chmod 0777 "$MOUNT_POINT"
 
+# Mount dbctl to edit it
 DBCTL_PATH="$PWD/resources/dbctl/dbctl"
 if [[ ! -f "$DBCTL_PATH" ]]; then
   echo_err "dbctl not found at $DBCTL_PATH"
@@ -26,12 +27,25 @@ if [[ ! -f "$DBCTL_PATH" ]]; then
 fi
 chmod +x "$DBCTL_PATH"
 
+# Get the env
+declare -a DOCKER_ENV_ARGS=()
+IFS=',' read -ra DIRENV_EXPORTED_KEYS_AS_ARRAY <<< "$DIRENV_EXPORTED_KEYS"
+for ENV in "${DIRENV_EXPORTED_KEYS_AS_ARRAY[@]}"; do
+    # Filter out all docker variable
+    if [[ $ENV == DOCKER* ]]; then
+        continue
+    fi
+    if [[ -v $ENV ]]; then
+        DOCKER_ENV_ARGS+=("-e $ENV=${!ENV}")
+    fi
+done
+
 ## Memory
 # The default /dev/shm size for containers is 64MB. If the shared memory is exhausted you will encounter
 # ERROR:  could not resize shared memory segment . . . : No space left on device.
 # You will want to pass --shm-size=256MB
 
-# Note the user will start the postgres process
+# Start the postgres database
 docker run \
   --name postgres \
   --rm \
@@ -39,9 +53,7 @@ docker run \
   -p 9187:9187 \
   --user 1000:1000 \
   --group-add postgres \
-  -e POSTGRES_USER="$POSTGRES_USER" \
-  -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-  -e POSTGRES_DB="$POSTGRES_DB" \
+  "${DOCKER_ENV_ARGS[@]}" \
   -v "${MOUNT_POINT}":/data \
   --mount type=bind,source="${DBCTL_PATH}",target=/usr/local/bin/dbctl \
   "${DOCKER_REGISTRY:-docker.io}"/"${DOCKER_USER}"/"${DOCKER_REPO}":"$DOCKER_TAG" \
