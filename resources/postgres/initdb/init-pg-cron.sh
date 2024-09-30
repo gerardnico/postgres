@@ -1,5 +1,6 @@
 #!/bin/bash
-set -e
+
+set -euo pipefail
 
 ## If not set, return
 if [ -z "$PG_CRON_DB" ]; then

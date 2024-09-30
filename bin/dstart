@@ -46,16 +46,16 @@ done
 # ERROR:  could not resize shared memory segment . . . : No space left on device.
 # You will want to pass --shm-size=256MB
 
+# --user 1000:1000 \
+# -v "${MOUNT_POINT}":/data \
 # Start the postgres database
 docker run \
   --name postgres \
   --rm \
   -p "$DOCKER_POSTGRES_LOCAL_PORT":5432 \
   -p 9187:9187 \
-  --user 1000:1000 \
   --group-add postgres \
   "${DOCKER_ENV_ARGS[@]}" \
-  -v "${MOUNT_POINT}":/data \
   --mount type=bind,source="${DBCTL_PATH}",target=/usr/local/bin/dbctl \
   "${DOCKER_REGISTRY:-docker.io}"/"${DOCKER_USER}"/"${DOCKER_REPO}":"$DOCKER_TAG" \
   supervisor-ctl \
