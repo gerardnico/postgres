@@ -8,8 +8,6 @@
 # E - the ERR trap is inherited by shell functions
 set -Eeuo pipefail
 
-echo Nico
-
 function finish() {
   printf "\n%s has finished\n" "${CLI_NAME}"
 }

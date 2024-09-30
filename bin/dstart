@@ -36,7 +36,8 @@ for ENV in "${DIRENV_EXPORTED_KEYS_AS_ARRAY[@]}"; do
         continue
     fi
     if [[ -v $ENV ]]; then
-        DOCKER_ENV_ARGS+=("-e $ENV=${!ENV}")
+        DOCKER_ENV_ARGS+=("-e")
+        DOCKER_ENV_ARGS+=("$ENV=${!ENV}")
     fi
 done
 
