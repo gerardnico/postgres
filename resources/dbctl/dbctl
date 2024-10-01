@@ -74,6 +74,9 @@ function psRestart(){
   echo_info "$process restarted"
 }
 
+function psState(){
+  supervisorctl status
+}
 
 function dbSqlRestore(){
   if [ -z "${ARGS[0]}" ]; then

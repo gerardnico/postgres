@@ -310,6 +310,8 @@ ADD resources/postgres/script/* /script/
 RUN chmod 0777 /home && \
     chmod -R 0777 /var/log && \
     chmod 0777 /run && \
+    echo "Add the group as config writer (to avoid Permission denied: file: /usr/lib/python3/dist-packages/supervisor/xmlrpc.py)" && \
+    chmod 0777 /var/run && \
     echo "Add the group as config writer" && \
     chmod g+w /etc/postgresql && \
     echo "Add the WSL user" && \
