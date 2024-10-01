@@ -4,7 +4,7 @@
 # Strict flag
 # e - Exit if any error
 # u - Treat unset variables as an error when substituting
-# o pipefail - the return value of a pipeline is the status of the last command to exit with a non-zero status or zero if no command exited with a non-zero status
+# o pipefail - the return value of a pipeline is the psStatus of the last command to exit with a non-zero psStatus or zero if no command exited with a non-zero psStatus
 # E - the ERR trap is inherited by shell functions
 set -Eeuo pipefail
 
@@ -23,6 +23,10 @@ function print_usage() {
   echo ""
   echo "where command is one of:"
   echo "     * help"
+  echo "     * ps-status                        - psStatus of the processes"
+  echo "     * ps-ls                            - list the processes running"
+  echo "     * ps-restart processName           - restart a process"
+  echo "     * ps-start processName             - start a process"
   echo "     * db-backup-sql-dump                                  - perform a sql database dump and a snapshot"
   echo "     * db-backup-sql-restore snapshotId [targetDbName]     - restore the sql database from a snapshot id into eventually another database"
   echo "     * db-backup-archive-dump                              - perform a database archive dump and a snapshot"
@@ -33,9 +37,6 @@ function print_usage() {
   echo "     * dump-ls                          - list the dump files in the snapshots"
   echo "     * dump-prune                       - forget old snapshots with prune policy and perform dump file integrity checks"
   echo "     * dump-fetch snapshotId path       - fetch/get a file/dump by path"
-  echo "     * ps-ls                            - list the processes running"
-  echo "     * ps-restart processName           - restart a process"
-  echo "     * ps-start processName             - start a process"
   echo "     * job-ls                           - print the pg_cron jobs"
   echo ""
 
@@ -74,8 +75,19 @@ function psRestart(){
   echo_info "$process restarted"
 }
 
-function psState(){
-  supervisorctl status
+
+## psStatus
+#
+# print every second the status of all process in supervisor
+function psStatus(){
+  while sleep 1; do
+    if OUTPUT=$(supervisorctl status all); then
+      # error or not
+      :
+    fi
+    clear;
+    echo "$OUTPUT"
+  done
 }
 
 function dbSqlRestore(){
@@ -428,6 +440,9 @@ ps-ls)
   ;;
 ps-restart)
   psRestart
+  ;;
+ps-status)
+  psStatus
   ;;
 ps-start)
   psStart
