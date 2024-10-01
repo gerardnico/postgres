@@ -1,30 +1,32 @@
 # Dev
 
 
-## Install
+## How to install a dev environment
+
+### Clone the repo
 
 ```bash
 git clone git@github.com/gerardnico/postgres
 cd postgres
 chmod +x bin/*
-sudo apt-get install -y direnv
 ```
 
-## Env
+### Install the docker helper command
 
-Env files are mounted via [.envrc](../.envrc).
+Install [dockenv](https://github.com/gerardnico/dockenv) to run docker command
+```bash
+brew install --HEAD gerardnico/tap/dockenv
+```
 
-## Development script
+### Install the environment load command
+Install [direnv-ext](https://github.com/gerardnico/direnv-ext) to 
+load the env files via [.envrc](../.envrc).
+```bash
+brew install --HEAD gerardnico/tap/direnvext
+```
 
-When developing, use the `d` (docker) command to:
-* [dbuild](../bin/dbuild) to build the image
-* [dstart](../bin/dstart) to start a dev image where the resources are mounted
-* [dpush](../bin/dpush) to push to the registry
-* [dexec](../bin/dexec) to execute a command generally `dexec bash -l`
-* [dstop](../bin/dstop) to stop the container
 
-These scripts are mounted via [.envrc](../.envrc) on the PATH.
 
-## Image
+## Note: Image
 
 All resources that copied in the image are located in [the resources directory](../resources)

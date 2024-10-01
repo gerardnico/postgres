@@ -6,7 +6,7 @@
 
 ### Create a container
 
-See [](../bin/dstart)
+`drun`
 
 
 ### Connect
