@@ -333,8 +333,8 @@ function backupCommand(){
 
   # Check if at least one argument is provided
   if [[ $# -eq 0 ]]; then
-      echo "Error: No arguments provided."
       print_backup
+      echo_err "No arguments provided."
       return 1
   fi
 
@@ -348,7 +348,7 @@ function backupCommand(){
 
   case "$COMMAND" in
     sql-dump)
-      dbSqlDump ${ARGS[@]:-}
+      dbSqlDump "${ARGS[@]:-}"
       ;;
     sql-restore)
       dbSqlRestore
