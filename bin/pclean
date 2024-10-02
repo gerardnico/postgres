@@ -1,0 +1,8 @@
+#!/bin/bash
+
+
+MOUNT="$PWD/mount"
+if [ -d $MOUNT ]; then
+  rm -rf $MOUNT
+  mkdir $MOUNT
+fi

@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# What are the -c flags passed to supervisor-ctl
+# The supervisor-ctl script is made so that any arguments will be passed along to the postgres server daemon
+# If you pass for instance `-c` flags, you will change the postgres configuration
+# -d \
+
+## Scripts need to have execution
+
+# Create the mount point to give it the right permissions
+MOUNT_POINT="$PWD/mount"
+mkdir -p "$MOUNT_POINT"
+chmod 0777 "$MOUNT_POINT"
+
+# Mount dbctl to edit it
+DBCTL_PATH="$PWD/resources/dbctl/dbctl"
+if [[ ! -f "$DBCTL_PATH" ]]; then
+  echo_err "dbctl not found at $DBCTL_PATH"
+  exit 1
+fi
+chmod +x "$DBCTL_PATH"
+
+## Memory
+# The default /dev/shm size for containers is 64MB. If the shared memory is exhausted you will encounter
+# ERROR:  could not resize shared memory segment . . . : No space left on device.
+# You will want to pass --shm-size=256MB
+
+drun \
+  --mount type=bind,source="${DBCTL_PATH}",target=/usr/local/bin/dbctl \
+  -v "${MOUNT_POINT}":/data \
+  supervisor-ctl \
+  -c shared_buffers=256MB \
+  -c max_connections=200

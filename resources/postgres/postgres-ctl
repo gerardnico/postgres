@@ -44,7 +44,7 @@ RCLONE_CONF="$HOME"/.config/rclone/rclone.conf
 if [ ! -f "$RCLONE_CONF" ]; then
   # to avoid the notice
   # NOTICE: Config file "/home/wsl/.config/rclone/rclone.conf" not found - using defaults
-  mdkdir -p "$HOME"/.config/rclone
+  mkdir -p "$HOME"/.config/rclone
   touch "$RCLONE_CONF"
 fi
 
@@ -61,7 +61,9 @@ if [[ ${RESTIC_REPOSITORY} != "" ]]; then
   fi
   if  ! restic snapshots > /dev/null; then
     echo_info "Restic Repo not found - Restic init at ${RESTIC_REPOSITORY}"
-    restic init
+    COMMAND="restic init -r $RESTIC_REPOSITORY"
+    echo_info "Executing the command: $COMMAND"
+    eval "$COMMAND"
     echo_info "Done at ${RESTIC_REPOSITORY}"
   else
     echo_info "RESTIC Repo already configured";
@@ -72,9 +74,10 @@ fi
 
 # Create the data repositories
 # They should be owned by the running user
-echo_info "Create dbctl Home and pg_pump directories"
-mkdir -p "$DBCTL_HOME"
+echo_info "Create the data repositories"
+mkdir -p "${DBCTL_HOME}"
 mkdir -p "${PG_DUMP_DATA}"
+
 
 ## Docker
 # Start the docker entrypoint

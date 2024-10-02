@@ -82,7 +82,8 @@ function psRestart(){
 function psStatus(){
   while sleep 1; do
     if OUTPUT=$(supervisorctl status all); then
-      # error or not
+      # catch error or not (if the status is not running)
+      # supervisorctl returns a -1 exit status
       :
     fi
     clear;
@@ -352,7 +353,6 @@ for arg in "$@"; do
   case "$arg" in
   --*)
     OPTIONS+=("$arg")
-    shift
     ;;
   *)
     # Command
@@ -363,7 +363,6 @@ for arg in "$@"; do
       echo "Arg ($arg) found"
       ARGS+=("$arg")
     fi
-    shift
     ;;
   esac
 done

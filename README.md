@@ -13,13 +13,14 @@ Set your value in the [.env](.env) file
 ```bash
 docker rm postgres
 docker run \
-  --env-file .env \
   --name postgres \
+  --env-file .env \
+  --user 1000:1000 \
+  --group-add postgres \
   -d \
   -p 5432:5432 \
-  -p 9187:9187 \
   -v $PWD/mount:/data \
-  gerardnico/postgres:16.3-v1
+  gerardnico/postgres:16.3-latest
 ```
 
 Error?

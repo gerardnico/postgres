@@ -6,7 +6,7 @@
 
 ### Create a container
 
-`drun`
+ie `docker run` or `drun`
 
 
 ### Connect
@@ -15,6 +15,8 @@
 
 ```bash
 docker exec -it postgres bash
+# or
+dbash
 # git bash
 winpty docker exec -it postgres bash
 ```

@@ -35,6 +35,18 @@ done
 export POSTGRES_ARGS="${*}"
 echo_info "postgres args: ${POSTGRES_ARGS}"
 
+
+# The user should have the `postgres` group
+# if it's not root
+if [ "$(id -u)" != "0" ]; then
+  if groups 2> /dev/null | grep postgres; then
+    echo_err "The user $USER should have the postgres group"
+    echo_err "Resolutions"
+    echo_err "  * add the postgres group to the user with the option --group-add postgres"
+    echo_err "  * or if you use dockenv, add the env DOCKER_USER_GROUPS=postgres to your environment file"
+  fi
+fi
+
 # we set the `c` to avoid the below warning:
 # UserWarning: Supervisord is running as root and it is searching
 # for its configuration file in default locations (including its current working directory);

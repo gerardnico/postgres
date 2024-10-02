@@ -74,7 +74,7 @@ RUN checkinstall -D --install=no --fstrans=no --backup=no --pakdir=/tmp --nodoc
 # https://github.com/rclone/rclone/blob/master/Dockerfile
 # COPY --from=rclone:rclone:${RCLONE_VERSION} does not work
 # We set it here as a multi-step build then
-FROM rclone/rclone:${RCLONE_VERSION} as rclone
+FROM rclone/rclone:${RCLONE_VERSION} AS rclone
 
 ###############################################
 # Postgres Final
@@ -324,7 +324,8 @@ ADD resources/postgres/script/* /script/
 RUN chmod 0777 /home && \
     chmod -R 0777 /var/log && \
     chmod 0777 /run && \
-    echo "Add the group as config writer (to avoid Permission denied: file: /usr/lib/python3/dist-packages/supervisor/xmlrpc.py)" && \
+    echo "Give permission on /var/run/supervisor.sock (to avoid Permission denied: file: /usr/lib/python3/dist-packages/supervisor/xmlrpc.py)" && \
+    chmod 0777 /var && \
     chmod 0777 /var/run && \
     echo "Add the group as config writer" && \
     chmod g+w /etc/postgresql && \
