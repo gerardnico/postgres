@@ -39,6 +39,16 @@ else
     echo_info "No Wal Recovery file signal found ($RECOVERY_SIGNAL_PATH)"
 fi
 
+## Rclone
+RCLONE_CONF="$HOME"/.config/rclone/rclone.conf
+if [ ! -f "$RCLONE_CONF" ]; then
+  # to avoid the notice
+  # NOTICE: Config file "/home/wsl/.config/rclone/rclone.conf" not found - using defaults
+  mdkdir -p "$HOME"/.config/rclone
+  touch "$RCLONE_CONF"
+fi
+
+
 ## Restic
 ## Only if the repo is set
 RESTIC_REPOSITORY=${RESTIC_REPOSITORY:-}

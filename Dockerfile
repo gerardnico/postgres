@@ -24,6 +24,9 @@ ARG WALG_OSNAME=ubuntu-20.04
 # https://github.com/restic/restic/releases/
 ARG RESTIC_VERSION=0.16.4
 
+# https://hub.docker.com/r/rclone/rclone/tags
+ARG RCLONE_VERSION=1.68.1
+
 # Postgres exporter
 # https://github.com/prometheus-community/postgres_exporter/releases
 ARG PG_EXPORTER_VERSION=0.15.0
@@ -64,7 +67,14 @@ RUN make -j$(nproc)
 # Create debian package
 RUN checkinstall -D --install=no --fstrans=no --backup=no --pakdir=/tmp --nodoc
 
-
+####################
+# Rclone
+####################
+# We use the rclone DockerFile
+# https://github.com/rclone/rclone/blob/master/Dockerfile
+# COPY --from=rclone:rclone:${RCLONE_VERSION} does not work
+# We set it here as a multi-step build then
+FROM rclone/rclone:${RCLONE_VERSION} as rclone
 
 ###############################################
 # Postgres Final
@@ -76,6 +86,7 @@ ARG PG_EXPORTER_VERSION
 ARG PG_VERSION
 ARG PG_MAJOR_VERSION
 ARG RESTIC_VERSION
+ARG RCLONE_VERSION
 ARG WALG_VERSION
 ARG WALG_OSNAME
 ARG SQL_EXPORTER_VERSION
@@ -85,12 +96,14 @@ ARG ARCHIVE_MODE=on
 ARG ARCHIVE_TIMEOUT=3600
 
 ####################################
-# Prebuild
+# COPY/Prebuild Installation
 ####################################
 # pg-safeupdate extension
 COPY --from=pg-safeupdate /tmp/*.deb /tmp
 RUN apt-get install --no-install-recommends -y /tmp/*.deb
 
+# rclone
+COPY --chmod=0775 --from=rclone /usr/local/bin/rclone /usr/local/bin/
 
 ####################################
 # Package
@@ -170,6 +183,7 @@ LABEL org.opencontainers.image.description="Postgres in Docker"
 LABEL image-version=${IMAGE_VERSION}
 LABEL walg-version=${WALG_VERSION}
 LABEL pg-version=${PG_VERSION}
+LABEL rclone-version=${RCLONE_VERSION}
 LABEL pg-exporter-version=${PG_EXPORTER_VERSION}
 LABEL pg-cron-version=${PG_MAJOR_VERSION}
 LABEL pg-vector-version=${PG_MAJOR_VERSION}
