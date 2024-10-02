@@ -14,6 +14,32 @@ function finish() {
 trap finish EXIT
 
 
+function print_backup() {
+
+  echo ""
+  echo "Usage of the backup command against the database (${CTL_DATABASE_NAME})"
+  echo ""
+  echo "The backup command creates or restore a dump of the database ${CTL_DATABASE_NAME}"
+  echo ""
+  echo "There are 2 dump formats:"
+  echo "  * sql"
+  echo "  * archive"
+  echo ""
+  echo "   ${CLI_NAME} backup command [--option[=value] ...] arg1 arg2 ..."
+  echo ""
+  echo "where command is one of:"
+  echo "     * sql-dump                                  - perform a sql dump and a snapshot"
+  echo "     * sql-restore snapshotId [targetDbName]     - restore the sql database from a snapshot id into eventually another database"
+  echo "     * archive-dump                              - perform a database archive dump and a snapshot"
+  echo "     * archive-restore snapshotId [targetDbName] - restore a database archive dump from a snapshot id into eventually another database"
+  echo "     * dump-ls                                   - list the dump files in the snapshots"
+  echo "     * dump-prune                                - forget old snapshots with prune policy and perform dump file integrity checks"
+  echo "     * dump-fetch snapshotId path                - fetch/get a file/dump by path"
+  echo "     * help"
+  echo ""
+
+}
+
 function print_usage() {
 
   echo ""
@@ -22,22 +48,16 @@ function print_usage() {
   echo "   ${CLI_NAME} command [--option[=value] ...] arg1 arg2 ..."
   echo ""
   echo "where command is one of:"
+  echo "     * backup                   - perform a database backup"
+  echo "     * db-ls                    - list the db in the postgres instance (cluster)"
+  echo "     * db-extension-ls          - list the extensions installed"
+  echo "     * db-conf                  - print the postgres.conf file"
+  echo "     * job-ls                   - print the pg_cron jobs"
+  echo "     * ps-status                - psStatus of the processes"
+  echo "     * ps-ls                    - list the processes running"
+  echo "     * ps-restart processName   - restart a process"
+  echo "     * ps-start processName     - start a process"
   echo "     * help"
-  echo "     * ps-status                        - psStatus of the processes"
-  echo "     * ps-ls                            - list the processes running"
-  echo "     * ps-restart processName           - restart a process"
-  echo "     * ps-start processName             - start a process"
-  echo "     * db-backup-sql-dump                                  - perform a sql database dump and a snapshot"
-  echo "     * db-backup-sql-restore snapshotId [targetDbName]     - restore the sql database from a snapshot id into eventually another database"
-  echo "     * db-backup-archive-dump                              - perform a database archive dump and a snapshot"
-  echo "     * db-backup-archive-restore snapshotId [targetDbName] - restore a database archive dump from a snapshot id into eventually another database"
-  echo "     * db-ls                            - list the db in the postgres instance (cluster)"
-  echo "     * db-extension-ls                  - list the extensions installed"
-  echo "     * db-conf                          - print the postgres.conf file"
-  echo "     * dump-ls                          - list the dump files in the snapshots"
-  echo "     * dump-prune                       - forget old snapshots with prune policy and perform dump file integrity checks"
-  echo "     * dump-fetch snapshotId path       - fetch/get a file/dump by path"
-  echo "     * job-ls                           - print the pg_cron jobs"
   echo ""
 
 }
@@ -308,6 +328,56 @@ function walGRestore(){
   done
 
 }
+
+function backupCommand(){
+
+  # Check if at least one argument is provided
+  if [[ $# -eq 0 ]]; then
+      echo "Error: No arguments provided."
+      print_backup
+      return 1
+  fi
+
+  # Assign the first argument to a string
+  local COMMAND="$1"
+  shift  # Remove the first argument from the argument list
+
+  # Assign the rest of the arguments to an array
+  local ARGS=()
+  ARGS=("$@")
+
+  case "$COMMAND" in
+    sql-dump)
+      dbSqlDump ${ARGS[@]:-}
+      ;;
+    sql-restore)
+      dbSqlRestore
+      ;;
+    archive-dump)
+      dbArchiveDump
+      ;;
+    archive-restore)
+      dbArchiveRestore
+      ;;
+    db-backp-dir-dump)
+      dbDirDump
+      ;;
+    dump-fetch)
+      dumpFetch
+      ;;
+    dump-ls)
+      dumpLs
+      ;;
+    dump-prune)
+      dumpPrune
+      ;;
+    *)
+      echo "Unknown command ($1) found"
+      exit 1
+        ;;
+  esac
+
+}
 function dumpPrune(){
 
   echo_info "Rolling the dump files (forget and prune)"
@@ -335,44 +405,9 @@ function dumpPrune(){
   echo_info "Dump Prune done"
 }
 
-#######################################
-## Main
-#######################################
-
-CLI_NAME=$(basename "$0") # Name of the cli
-if [[ -z ${DBCTL_LOG_FILE} ]]; then
-  echo_err "The DBCTL_LOG_FILE env is mandatory"
-  exit 1
-fi
-
-declare -a OPTIONS
-declare -a ARGS
-COMMAND=""
-# Parsing
-for arg in "$@"; do
-  case "$arg" in
-  --*)
-    OPTIONS+=("$arg")
-    ;;
-  *)
-    # Command
-    if [ -z "$COMMAND" ]; then
-      COMMAND="$arg"
-      echo "Command ($COMMAND) found"
-    else
-      echo "Arg ($arg) found"
-      ARGS+=("$arg")
-    fi
-    ;;
-  esac
-done
-
-if [ "$COMMAND" == "" ]; then
-  echo 'No command was given, help chosen.'
-  COMMAND='help'
-fi
-
+#################################
 ## Global Parameters
+#################################
 CTL_DATABASE_NAME=${POSTGRES_DB}
 if [ -z "${CTL_DATABASE_NAME}" ]; then
   CTL_DATABASE_NAME=${POSTGRES_USER}
@@ -383,7 +418,8 @@ if [ -z "${CTL_DATABASE_NAME}" ]; then
 fi;
 
 ## Dump parameter
-if [[ -z ${PG_DUMP_DATA} ]]; then
+PG_DUMP_DATA=${PG_DUMP_DATA:-}
+if [[ ${PG_DUMP_DATA} == "" ]]; then
     echo_err "The PG_DUMP_DATA var is unknown"
     exit 1;
 fi;
@@ -394,34 +430,41 @@ DB_DUMP_ARCHIVE_DIR="$PG_DUMP_DATA"/dumpfile-db-"${CTL_DATABASE_NAME}"
 # RESTORE_DIR_BASE where the files restored are going
 RESTORE_DIR_BASE=/tmp
 
+CLI_NAME=$(basename "$0") # Name of the cli
+if [[ -z ${DBCTL_LOG_FILE} ]]; then
+  echo_err "The DBCTL_LOG_FILE env is mandatory"
+  exit 1
+fi
+
+#######################################
+## Main
+#######################################
+
+if [[ $# -eq 0 ]]; then
+  echo 'No command was given, showing help.'
+  print_usage
+  exit 1
+fi
+
+# Assign the first argument to a string
+COMMAND="$1"
+shift  # Remove the first argument from the argument list
+
+# Assign the rest of the arguments to an array
+declare -a ARGS=()
+ARGS=("$@")
+
+
+#################################
+## Start
+#################################
 echo
 echo "${CLI_NAME^} ${COMMAND^}"
 echo "-------------------------------------------"
 echo ""
 case ${COMMAND} in
-db-backup-sql-dump)
-  dbSqlDump
-  ;;
-db-backup-sql-restore)
-  dbSqlRestore
-  ;;
-db-backup-archive-dump)
-  dbArchiveDump
-  ;;
-db-backup-archive-restore)
-  dbArchiveRestore
-  ;;
-db-backp-dir-dump)
-  dbDirDump
-  ;;
-dump-fetch)
-  dumpFetch
-  ;;
-dump-ls)
-  dumpLs
-  ;;
-dump-prune)
-  dumpPrune
+backup)
+  backupCommand "${ARGS[@]}"
   ;;
 db-ls)
   psql -c "\l"
