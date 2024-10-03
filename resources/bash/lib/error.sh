@@ -1,5 +1,6 @@
 #!/bin/bash
 
+load echo.sh
 
 print_stack(){
   # CallStack with FUNCNAME
@@ -31,10 +32,10 @@ error_handler() {
 
 }
 
-
+# Generally added via
 ## A trap on ERR, if set, is executed before the shell exits.
 # Because we show the $LINENO, we need to pass a command to the trap and not a function otherwise the line number would be not correct
-trap 'error_handler "$LINENO" "${BASH_COMMAND}"' ERR
-
+# trap 'error_handler "$LINENO" "${BASH_COMMAND}"' ERR
+#
 ## A simple trap to copy on external file
 # trap 'echo_err ""; echo_err "Command error on line ($0:$LINENO)"; exit 1' ERR

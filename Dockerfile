@@ -214,12 +214,14 @@ ENV LC_COLLATE=C.UTF-8
 ENV TZ='Etc/UTC'
 
 #####################################
-# Postgres CLI (bash -l)
+# Bash
 #####################################
 # The base Postgres image does not use the postgress environment variable
 # Postgres Local Connection env
 # so that when logged in, we can connect automatically and wal-g also
-ADD resources/bash/* /etc/profile.d
+ADD resources/bash/profile.d/* /etc/profile.d
+RUN mkdir -p /usr/local/lib/bash
+ADD resources/bash/lib/* /usr/local/lib/bash
 
 ####################################
 # Postgres Prometheus exporter

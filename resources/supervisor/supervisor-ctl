@@ -39,11 +39,12 @@ echo_info "postgres args: ${POSTGRES_ARGS}"
 # The user should have the `postgres` group
 # if it's not root
 if [ "$(id -u)" != "0" ]; then
-  if groups 2> /dev/null | grep postgres; then
-    echo_err "The user $USER should have the postgres group"
+  if ! groups 2> /dev/null | grep postgres 2> /dev/null; then
+    echo_err "The non-root user $USER should have the postgres group"
     echo_err "Resolutions"
     echo_err "  * add the postgres group to the user with the option --group-add postgres"
     echo_err "  * or if you use dockenv, add the env DOCKER_USER_GROUPS=postgres to your environment file"
+    exit 1
   fi
 fi
 

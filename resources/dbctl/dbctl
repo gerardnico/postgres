@@ -29,6 +29,63 @@ cleaning_snapshot_dir(){
 
 }
 
+validate_postgres_dump() {
+
+    local dump_file="$1"
+
+    # Check if file exists
+    if [[ ! -f "$dump_file" ]]; then
+        echo_err "Error: File $dump_file does not exist."
+        return 1
+    fi
+
+    # Check file extension
+    if [[ "${dump_file##*.}" != "dump" ]]; then
+        echo_warn "Warning: File does not have .dump extension."
+    fi
+
+    # Check if file is empty
+    if [[ ! -s "$dump_file" ]]; then
+        echo_err "Error: File is empty."
+        return 1
+    fi
+
+    # Check file format (custom or plain)
+    if head -c 5 "$dump_file" | grep -q "PGDMP"; then
+        echo_info "Info: File appears to be in custom format."
+        format="custom"
+    else
+        echo_info "Info: File appears to be in plain text format."
+        format="plain"
+    fi
+
+    # Validate file integrity
+    if [[ "$format" == "custom" ]]; then
+        if pg_restore -l "$dump_file" &>/dev/null; then
+            echo_info "pg_restore can read the file structure."
+        else
+            echo_err "pg_restore cannot read the file structure. The dump may be corrupted."
+            return 1
+        fi
+    else
+        if grep -q "PostgreSQL database dump complete" "$dump_file"; then
+            echo_info "File contains complete dump signature."
+        else
+            echo_warn "File does not contain the complete dump signature. It may be incomplete."
+        fi
+    fi
+
+    # Check for specific PostgreSQL objects (example: tables)
+    if [[ "$format" == "custom" ]]; then
+        table_count=$(pg_restore -l "$dump_file" | grep -c "TABLE")
+    else
+        table_count=$(grep -c "CREATE TABLE" "$dump_file")
+    fi
+    echo_info "Info: Dump contains approximately $table_count tables."
+    echo_info "Validation complete. The dump file appears to be valid."
+    return 0
+}
+
 function backupCommandHelp() {
 
   echo ""
@@ -248,6 +305,9 @@ function backupRestoreCommand(){
       DUMP_FILE_TYPE=$SQL_DUMP_FORMAT
     fi
   fi
+
+  echo_info "Validating the dump file"
+  validate_postgres_dump "${DUMP_FILE_TO_RESTORE}"
 
   echo_info "Restoring the database ${TARGET_DB_NAME} with the dump (${DUMP_FILE_TO_RESTORE})"
   echo_info "Checking if the database ${TARGET_DB_NAME} exists"

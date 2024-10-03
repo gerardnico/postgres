@@ -20,6 +20,13 @@ if [[ ! -f "$DBCTL_PATH" ]]; then
 fi
 chmod +x "$DBCTL_PATH"
 
+# Mount profile.d to edit the bash script
+PROFILE_D="$PWD/resources/bash"
+if [[ ! -d "$PROFILE_D" ]]; then
+  echo_err "bash profile dir not found at $PROFILE_D"
+  exit 1
+fi
+
 ## Memory
 # The default /dev/shm size for containers is 64MB. If the shared memory is exhausted you will encounter
 # ERROR:  could not resize shared memory segment . . . : No space left on device.
@@ -28,6 +35,7 @@ chmod +x "$DBCTL_PATH"
 drun \
   --mount type=bind,source="${DBCTL_PATH}",target=/usr/local/bin/dbctl \
   -v "${MOUNT_POINT}":/data \
+  -v "${PROFILE_D}":/etc/profile.d \
   supervisor-ctl \
   -c shared_buffers=256MB \
   -c max_connections=200

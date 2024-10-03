@@ -25,6 +25,12 @@ load the env files via [.envrc](../.envrc).
 brew install --HEAD gerardnico/tap/direnvext
 ```
 
+### Change, run, build, repeat
+
+Build and run
+```bash
+dbuild && prun
+```
 
 
 ## Note: Image
