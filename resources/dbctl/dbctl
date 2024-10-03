@@ -13,34 +13,81 @@ function finish() {
 }
 trap finish EXIT
 
+# Execute a command
+eval_command(){
+  local EVAL_COMMAND=$1
+  echo_info "Executing the command:\n$EVAL_COMMAND\n"
+  eval "$EVAL_COMMAND"
+}
 
-function print_backup() {
+cleaning_snapshot_dir(){
+
+  echo_info "Cleaning the snapshot directory"
+  eval_command "rm -rf $DB_DUMP_SNAPSHOT_PATH"
+  eval_command "mkdir -p $DB_DUMP_SNAPSHOT_PATH"
+  echo_info "Directory cleaned"
+
+}
+
+function backupCommandHelp() {
 
   echo ""
   echo "Usage of the backup command against the database (${CTL_DATABASE_NAME})"
   echo ""
   echo "The backup command creates or restore a dump of the database ${CTL_DATABASE_NAME}"
   echo ""
-  echo "There are 2 dump formats:"
+  echo "You can create 2 type of backup dump:"
   echo "  * sql"
   echo "  * archive"
   echo ""
   echo "   ${CLI_NAME} backup command [--option[=value] ...] arg1 arg2 ..."
   echo ""
   echo "where command is one of:"
-  echo "     * sql-dump                                  - perform a sql dump and a snapshot"
-  echo "     * sql-restore snapshotId [targetDbName]     - restore the sql database from a snapshot id into eventually another database"
-  echo "     * archive-dump                              - perform a database archive dump and a snapshot"
-  echo "     * archive-restore snapshotId [targetDbName] - restore a database archive dump from a snapshot id into eventually another database"
-  echo "     * dump-ls                                   - list the dump files in the snapshots"
-  echo "     * dump-prune                                - forget old snapshots with prune policy and perform dump file integrity checks"
-  echo "     * dump-fetch snapshotId path                - fetch/get a file/dump by path"
+  echo "     * create  - perform a backup"
+  echo "     * restore - restore a backup"
+  echo "     * ls      - list the backup dump files"
+  echo "     * prune   - forget old snapshots with prune policy and perform dump file integrity checks"
+  echo "     * fetch   snapshotId path     - fetch/get a file/dump by path"
   echo "     * help"
   echo ""
 
 }
+function backupRestoreHelp() {
 
-function print_usage() {
+  echo ""
+  echo "Usage of the 'backup restore' command"
+  echo ""
+  echo "The 'backup restore' command restores a database from a snapshot dump"
+  echo ""
+  echo "   ${CLI_NAME} backup restore snapshotId [targetDbName]"
+  echo ""
+  echo "where:"
+  echo "  * snapshotId   : is the id of a snapshot backup"
+  echo "      (You can get them with the command 'backup ls')"
+  echo "  * targetDbName : is the database target for the restoration"
+  echo "      (by default: ${CTL_DATABASE_NAME})"
+  echo ""
+
+}
+
+function backupCreateHelp() {
+
+  echo ""
+  echo "Usage of the 'backup create' command"
+  echo ""
+  echo "The 'backup create' command creates a snapshot of the database ${CTL_DATABASE_NAME} in a dump format"
+  echo ""
+  echo "   ${CLI_NAME} backup create type"
+  echo ""
+  echo "where:"
+  echo "  * type is the format of the dump:"
+  echo "     * sql      - perform a sql backup dump (SQL file with statements)"
+  echo "     * archive  - perform an archive dump (Archive format)"
+  echo ""
+
+}
+
+function help() {
 
   echo ""
   echo "Usage of the cli ${CLI_NAME} against the database (${CTL_DATABASE_NAME})"
@@ -48,7 +95,7 @@ function print_usage() {
   echo "   ${CLI_NAME} command [--option[=value] ...] arg1 arg2 ..."
   echo ""
   echo "where command is one of:"
-  echo "     * backup                   - perform a database backup"
+  echo "     * backup                   - create or restore a database backup"
   echo "     * db-ls                    - list the db in the postgres instance (cluster)"
   echo "     * db-extension-ls          - list the extensions installed"
   echo "     * db-conf                  - print the postgres.conf file"
@@ -120,122 +167,160 @@ function dbSqlRestore(){
       exit 1
   fi
   snapshot=${ARGS[0]}
-  targetDbName=${ARGS[1]}
-  if [ -z "${targetDbName}" ]; then
-      targetDbName=$CTL_DATABASE_NAME
+  TARGET_DB_NAME=${ARGS[1]}
+  if [ -z "${TARGET_DB_NAME}" ]; then
+      TARGET_DB_NAME=$CTL_DATABASE_NAME
   fi
 
-  echo_info "Restoring the dump (${DB_DUMP_SQL_FILE}) from the snapshot ${snapshot} into the database (${targetDbName})"
+  echo_info "Restoring the dump (${DB_DUMP_SQL_FILE}) from the snapshot ${snapshot} into the database (${TARGET_DB_NAME})"
   command="restic restore --include ${DB_DUMP_SQL_FILE} --target $RESTORE_DIR_BASE --verify ${snapshot}"
   echo_info "\nExecuting the command:\n$command\n"
   eval "$command"
   echo_info "Restoration done"
 
-  dumpFileToRestore="${RESTORE_DIR_BASE}${DB_DUMP_SQL_FILE}"
-  echo_info "Restoring the database ${targetDbName} with the dump (${dumpFileToRestore}) into the database (${targetDbName})"
-  RESULT=$(psql -tAc "SELECT 1 FROM pg_database WHERE datname='${targetDbName}'")
+  DUMP_FILE_TO_RESTORE="${RESTORE_DIR_BASE}${DB_DUMP_SQL_FILE}"
+  echo_info "Restoring the database ${TARGET_DB_NAME} with the dump (${DUMP_FILE_TO_RESTORE}) into the database (${TARGET_DB_NAME})"
+  RESULT=$(psql -tAc "SELECT 1 FROM pg_database WHERE datname='${TARGET_DB_NAME}'")
   if [ "$RESULT" == "1" ]; then
-    echo_info "The database ${targetDbName} exits and should be dropped before restoration"
-    echo_info "Dropping the database ${targetDbName} before restoration"
-    command="dropdb ${targetDbName} --force -i"
+    echo_info "The database ${TARGET_DB_NAME} exits and should be dropped before restoration"
+    echo_info "Dropping the database ${TARGET_DB_NAME} before restoration"
+    command="dropdb ${TARGET_DB_NAME} --force -i"
     echo_info "\nExecuting the command:\n$command\n"
     eval "$command"
     echo_info "Done"
   fi;
-  echo_info "Creating the database ${targetDbName}"
+  echo_info "Creating the database ${TARGET_DB_NAME}"
   # load the output of pg_restore into a truly empty database (ie template0)
-  createdb -T template0 "${targetDbName}"
+  createdb -T template0 "${TARGET_DB_NAME}"
   echo_info "Done"
   echo_info "Executing the Sql dump"
-  gunzip < "${dumpFileToRestore}" | psql --set ON_ERROR_STOP=on --single-transaction "${targetDbName}"
+
   echo_info "Done"
   echo_info "Restoration done and successful"
 }
 
-function dbArchiveRestore(){
+function backupRestoreCommand(){
+
   if [ -z "${ARGS[0]}" ]; then
+      backupRestoreHelp
       echo_err 'The Snapshot Id should be given as first argument'
-      echo_err 'use the dump-ls command to get the available snapshot ids'
-      # shellcheck disable=SC2016
-      echo_err 'or use `latest` if you want to use the latest snapshot'
+      echo_err "  * get one with the 'create ls' command"
+      echo_err "  * or use 'latest' if you want to use the latest snapshot"
       exit 1
   fi
+
   snapshot=${ARGS[0]}
-  targetDbName=${ARGS[1]}
-  if [ -z "${targetDbName}" ]; then
-      targetDbName=$CTL_DATABASE_NAME
+  TARGET_DB_NAME=${ARGS[1]:-}
+  if [ "${TARGET_DB_NAME}" == "" ]; then
+      TARGET_DB_NAME=$CTL_DATABASE_NAME
   fi
-  echo_info "Fetching the dump (${DB_DUMP_ARCHIVE_FILE}) from the snapshot ${snapshot} into the database (${targetDbName})"
-  restic restore --include "${DB_DUMP_ARCHIVE_FILE}" --target "$RESTORE_DIR_BASE" --verify "${snapshot}"
+
+
+  echo_info "Creating the target restoration directory"
+  RESTORE_DIR="$RESTORE_DIR_BASE/${snapshot}"
+  eval_command "mkdir -p $RESTORE_DIR_BASE"
+  echo_info "Directory created"
+
+  echo_info "Fetching the backup dump from the snapshot ${snapshot} into the database (${TARGET_DB_NAME})"
+  eval_command "restic restore --include ${DB_DUMP_SNAPSHOT_PATH} --target $RESTORE_DIR_BASE --verify ${snapshot}"
   echo_info "Fetching done"
-  dumpFileToRestore="${RESTORE_DIR_BASE}${DB_DUMP_ARCHIVE_FILE}"
-  echo_info "Restoring the database ${targetDbName} with the dump (${dumpFileToRestore}) into the database (${targetDbName})"
-  RESULT=$(psql -tAc "SELECT 1 FROM pg_database WHERE datname='${targetDbName}'")
-  if [ "$RESULT" == "1" ]; then
-    echo_info "The database ${targetDbName} exits and should be dropped before restoration"
-    echo_info "Dropping the database ${targetDbName} before restoration? (y/N)"
+
+  echo_info "Searching a valid dump file in the snapshot ${snapshot}"
+  ARCHIVE_DUMP_FILE_TO_RESTORE="${RESTORE_DIR}/${DB_DUMP_ARCHIVE_FILE}"
+  if [ -f  "$ARCHIVE_DUMP_FILE_TO_RESTORE" ]; then
+      DUMP_FILE_TO_RESTORE=$ARCHIVE_DUMP_FILE_TO_RESTORE
+      DUMP_FILE_TYPE=$ARCHIVE_DUMP_FORMAT
+  else
+    SQL_DUMP_FILE_TO_RESTORE="${RESTORE_DIR}/${DB_DUMP_SQL_FILE}"
+    if [ ! -f  "$SQL_DUMP_FILE_TO_RESTORE" ]; then
+      echo_err "The snapshot ${snapshot} does have any dump file to restore"
+      echo_err "  * No SQL dump found at $SQL_DUMP_FILE_TO_RESTORE"
+      echo_err "  * No Archive dump found at ${ARCHIVE_DUMP_FILE_TO_RESTORE}"
+      exit 1
+    fi
+    DUMP_FILE_TO_RESTORE=$SQL_DUMP_FILE_TO_RESTORE
+    DUMP_FILE_TYPE=$SQL_DUMP_FORMAT
+  fi
+  echo_info "Dump file $DUMP_FILE_TO_RESTORE found"
+
+  echo_info "Restoring the database ${TARGET_DB_NAME} with the dump (${DUMP_FILE_TO_RESTORE})"
+  echo_info "Checking if the database ${TARGET_DB_NAME} exists"
+  if [ "$(psql -tAc "SELECT 1 FROM pg_database WHERE datname='${TARGET_DB_NAME}'")" == "1" ]; then
+    echo_info "The database ${TARGET_DB_NAME} exits and should be dropped before restoration"
+    echo_info "Dropping the database ${TARGET_DB_NAME} before restoration? (y/N)"
     read -r answer
     if [ "$answer" != "y" ]; then
-        echo "Exiting..."
-        exit
+        echo_info "Exiting..."
+        exit 1
     fi
-    dropdb "${targetDbName}" --force -i
-    echo_info "Done"
+    eval_command "dropdb ${TARGET_DB_NAME} --force -i"
+    echo_info "Dropping Done"
+  else
+    echo_info "The database does not exist"
   fi;
-  echo_info "Creating the database ${targetDbName}"
+
+  echo_info "Creating an empty database ${TARGET_DB_NAME}"
   # load the output of pg_restore into a truly empty database (ie template0)
-  createdb -T template0 "${targetDbName}"
-  echo_info "Done"
-  echo_info "Executing the Archive dump"
+  eval_command "createdb -T template0 ${TARGET_DB_NAME}"
+  echo_info "Database created"
 
-  # the -d option makes a direct connection with libpq
-  # If the connection does not work, try with psql
-  command="pg_restore -d ${targetDbName} ${dumpFileToRestore}"
-  echo_info "\nExecuting the command:\n$command\n"
-  eval "$command"
+  echo_info "Restoring the database"
+  if [ "$DUMP_FILE_TYPE" == "$SQL_DUMP_FORMAT" ]; then
+    eval_command "gunzip < ${DUMP_FILE_TO_RESTORE} | psql --set ON_ERROR_STOP=on --single-transaction ${TARGET_DB_NAME}";
+  else
+    # the -d option makes a direct connection with libpq
+    # If the connection does not work, try with psql
+    eval_command "pg_restore -d ${TARGET_DB_NAME} ${DUMP_FILE_TO_RESTORE}"
+  fi
+  echo_info "Restoration done"
 
-  echo_info "Done"
-  echo_info "Restoration done and successful"
-}
-
-function dbSqlDump(){
-  echo_info "Dumping the database (${CTL_DATABASE_NAME})"
-
-  command="pg_dump ${CTL_DATABASE_NAME} | gzip  > ${DB_DUMP_SQL_FILE}"
-  echo_info "\nExecuting the command:\n$command\n"
-  eval "$command"
-
-  echo_info "Done"
-  echo_info "Loading into Restic S3 repo (${PG_DUMP_DATA})"
-
-  command="restic backup ${PG_DUMP_DATA}"
-  echo_info "\nExecuting the command:\n$command\n"
-  eval "$command"
-
-  echo_info "Restic upload done"
-  echo_info "Backup done"
+  echo_info "Bye"
 
 }
 
-function dbArchiveDump(){
 
-  echo_info "Dumping the database (${CTL_DATABASE_NAME}) at ${DB_DUMP_ARCHIVE_FILE}"
+function backupCreateCommand(){
 
-  # F means format and c specify the custom format
-  # https://www.postgresql.org/docs/current/app-pgdump.html
-  command="pg_dump --format=c ${CTL_DATABASE_NAME} > ${DB_DUMP_ARCHIVE_FILE}"
-  echo_info "\nExecuting the command:\n$command\n"
-  eval "$command"
+  # Check if at least one argument is provided
+  if [[ $# -eq 0 ]]; then
+      backupCreateHelp
+      echo_err "No arguments provided."
+      return 1
+  fi
 
+  # Cleaning the snapshot directory
+  clean_snaphost_dir
+
+  # Assign the first argument to a string
+  local DUMP_FORMAT=${1:-$SQL_DUMP_FORMAT}
+  local DUMP_FILE;
+  case "$DUMP_FORMAT" in
+      "$SQL_DUMP_FORMAT")
+        DUMP_FILE=${DB_DUMP_ARCHIVE_FILE}
+        EVAL_COMMAND="pg_dump ${CTL_DATABASE_NAME} | gzip  > ${DUMP_FILE}"
+        ;;
+      "$SQL_ARCHIVE_FORMAT")
+        DUMP_FILE=${DB_DUMP_ARCHIVE_FILE}
+        # F means format and c specify the custom format
+        # https://www.postgresql.org/docs/current/app-pgdump.html
+        EVAL_COMMAND="pg_dump --format=c ${CTL_DATABASE_NAME} > ${DUMP_FILE}"
+        ;;
+       *)
+         backupCreateHelp
+         echo_err "Dump format $DUMP_FORMAT unknown"
+         return 1
+  esac
+
+  echo_info "Dumping the database (${CTL_DATABASE_NAME}) into the snapshot directory"
+  eval_command "$EVAL_COMMAND"
   echo_info "Done"
-  echo_info "Loading into Restic S3 repo (${PG_DUMP_DATA})"
 
-  command="restic backup ${PG_DUMP_DATA}"
-  echo_info "\nExecuting the command:\n$command\n"
-  eval "$command"
+  echo_info "Creating a snapshot"
+  eval_command "restic backup ${DB_DUMP_SNAPSHOT_PATH}"
+  echo_info "Snapshot done"
 
-  echo_info "Restic upload done"
   echo_info "Backup done"
+
 }
 
 function dbDirDump(){
@@ -264,7 +349,7 @@ function dbDirDump(){
   echo_info "Backup done"
 }
 
-function dumpLs(){
+function backupLsCommand(){
   restic find --long  "${PG_DUMP_DATA}"
 }
 
@@ -329,11 +414,34 @@ function walGRestore(){
 
 }
 
+function backupSqlCommand(){
+
+    # Check if at least one argument is provided
+    if [[ $# -eq 0 ]]; then
+        backupCreateHelp
+        echo_err "No arguments provided."
+        return 1
+    fi
+
+    # Assign the first argument to a string
+    local DUMP_FORMAT="$1"
+    shift  # Remove the first argument from the argument list
+
+    # Assign the rest of the arguments to an array
+    local ARGS=()
+    ARGS=("$@")
+    case "$DUMP_FORMAT" in
+        sql)
+          backupSql
+        ;;
+   esac
+}
+
 function backupCommand(){
 
   # Check if at least one argument is provided
   if [[ $# -eq 0 ]]; then
-      print_backup
+      backupCommandHelp
       echo_err "No arguments provided."
       return 1
   fi
@@ -347,38 +455,32 @@ function backupCommand(){
   ARGS=("$@")
 
   case "$COMMAND" in
-    sql-dump)
-      dbSqlDump "${ARGS[@]:-}"
+    create)
+      backupCreateCommand "${ARGS[@]}"
       ;;
-    sql-restore)
-      dbSqlRestore
-      ;;
-    archive-dump)
-      dbArchiveDump
-      ;;
-    archive-restore)
-      dbArchiveRestore
+    restore)
+      backupRestoreCommand "${ARGS[@]}"
       ;;
     db-backp-dir-dump)
       dbDirDump
       ;;
-    dump-fetch)
+    fetch)
       dumpFetch
       ;;
-    dump-ls)
-      dumpLs
+    ls)
+      backupLsCommand
       ;;
-    dump-prune)
-      dumpPrune
+    prune)
+      backupPruneCommand
       ;;
     *)
-      echo "Unknown command ($1) found"
+      echo "Unknown command ($COMMAND) found"
       exit 1
         ;;
   esac
 
 }
-function dumpPrune(){
+function backupPruneCommand(){
 
   echo_info "Rolling the dump files (forget and prune)"
   command="restic forget --prune ${DBCTL_FORGET_POLICY:---keep-hourly 5 --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 3}"
@@ -424,11 +526,27 @@ if [[ ${PG_DUMP_DATA} == "" ]]; then
     exit 1;
 fi;
 mkdir -p "$PG_DUMP_DATA"
-DB_DUMP_SQL_FILE="$PG_DUMP_DATA"/dumpfile-db-"${CTL_DATABASE_NAME}".sql.gz
-DB_DUMP_ARCHIVE_FILE="$PG_DUMP_DATA"/dumpfile-db-"${CTL_DATABASE_NAME}".dump
-DB_DUMP_ARCHIVE_DIR="$PG_DUMP_DATA"/dumpfile-db-"${CTL_DATABASE_NAME}"
+###############################
+# Constant for the dump format
+###############################
+SQL_DUMP_FORMAT=sql
+SQL_ARCHIVE_FORMAT=archive
+###############################
+# Constant for the dump files
+###############################
+# The snapshot directory is the directory that restic snapshots.
+# ie before every dump creation/restoration,
+# the directory is cleaned to have only one dump at a time
+DB_DUMP_SNAPSHOT_PATH="$PG_DUMP_DATA/snapshot"
+mkdir -p "$DB_DUMP_SNAPSHOT_PATH"
+# All dump files start with this prefix path
+DB_DUMP_PATH_PREFIX="$DB_DUMP_SNAPSHOT_PATH/dumpfile-db"
+DB_DUMP_SQL_FILE="$DB_DUMP_PATH_PREFIX-${CTL_DATABASE_NAME}.sql.gz"
+DB_DUMP_ARCHIVE_FILE="$DB_DUMP_PATH_PREFIX-${CTL_DATABASE_NAME}.dump"
+DB_DUMP_ARCHIVE_DIR="$DB_DUMP_PATH_PREFIX-${CTL_DATABASE_NAME}"
 # RESTORE_DIR_BASE where the files restored are going
 RESTORE_DIR_BASE=/tmp
+
 
 CLI_NAME=$(basename "$0") # Name of the cli
 if [[ -z ${DBCTL_LOG_FILE} ]]; then
@@ -441,8 +559,8 @@ fi
 #######################################
 
 if [[ $# -eq 0 ]]; then
-  echo 'No command was given, showing help.'
-  print_usage
+  help
+  echo_err 'No command was given.'
   exit 1
 fi
 
@@ -465,6 +583,9 @@ echo ""
 case ${COMMAND} in
 backup)
   backupCommand "${ARGS[@]}"
+  ;;
+restore)
+  backupRestoreCommand "${ARGS[@]}"
   ;;
 db-ls)
   psql -c "\l"
@@ -502,14 +623,16 @@ psql)
   psql "${OPTIONS[@]}"
   ;;
 job-ls)
-  psql -c "select * from cron.job_run_details order by start_time desc limit 5"
+  EVAL_COMMAND="psql -c 'select * from cron.job_run_details order by start_time desc limit 5'"
+  echo_info "Executing the command:\n$EVAL_COMMAND"
+  eval "$EVAL_COMMAND"
   ;;
 help)
-  print_usage
+  help
   ;;
 *)
+  help
   echo_err "The command $COMMAND is unknown"
-  print_usage
   exit 1
   ;;
 esac
