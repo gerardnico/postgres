@@ -22,9 +22,9 @@ eval_command(){
 
 cleaning_snapshot_dir(){
 
-  echo_info "Cleaning the snapshot directory"
-  eval_command "rm -rf $DB_DUMP_SNAPSHOT_PATH"
-  eval_command "mkdir -p $DB_DUMP_SNAPSHOT_PATH"
+  echo_info "Cleaning the SNAPSHOT_ID directory"
+  eval_command "rm -rf $DB_DUMP_SNAPSHOT_DIR"
+  eval_command "mkdir -p $DB_DUMP_SNAPSHOT_DIR"
   echo_info "Directory cleaned"
 
 }
@@ -57,15 +57,16 @@ function backupRestoreHelp() {
   echo ""
   echo "Usage of the 'backup restore' command"
   echo ""
-  echo "The 'backup restore' command restores a database from a snapshot dump"
+  echo "The 'backup restore' command restores a database from a SNAPSHOT_ID dump"
   echo ""
-  echo "   ${CLI_NAME} backup restore snapshotId [targetDbName]"
+  echo "   ${CLI_NAME} backup restore [--db targetDbName] [--path dumpPath] snapshotId"
   echo ""
   echo "where:"
-  echo "  * snapshotId   : is the id of a snapshot backup"
-  echo "      (You can get them with the command 'backup ls')"
-  echo "  * targetDbName : is the database target for the restoration"
-  echo "      (by default: ${CTL_DATABASE_NAME})"
+  echo "  * snapshotId          - the id of a SNAPSHOT_ID backup"
+  echo "         (You can get them with the command 'backup ls')"
+  echo "  * --db   targetDbName - the database target for the restoration"
+  echo "         (by default: ${CTL_DATABASE_NAME})"
+  echo "  * --path dumpPath     - the path to the dump file in a snapshot"
   echo ""
 
 }
@@ -75,7 +76,7 @@ function backupCreateHelp() {
   echo ""
   echo "Usage of the 'backup create' command"
   echo ""
-  echo "The 'backup create' command creates a snapshot of the database ${CTL_DATABASE_NAME} in a dump format"
+  echo "The 'backup create' command creates a SNAPSHOT_ID of the database ${CTL_DATABASE_NAME} in a dump format"
   echo ""
   echo "   ${CLI_NAME} backup create type"
   echo ""
@@ -158,46 +159,6 @@ function psStatus(){
   done
 }
 
-function dbSqlRestore(){
-  if [ -z "${ARGS[0]}" ]; then
-      echo_err 'The Snapshot Id should be given as first argument'
-      echo_err 'use the dump-ls command to get the available snapshot id'
-      # shellcheck disable=SC2016
-      echo_err 'or use `latest` if you want to use the latest snapshot'
-      exit 1
-  fi
-  snapshot=${ARGS[0]}
-  TARGET_DB_NAME=${ARGS[1]}
-  if [ -z "${TARGET_DB_NAME}" ]; then
-      TARGET_DB_NAME=$CTL_DATABASE_NAME
-  fi
-
-  echo_info "Restoring the dump (${DB_DUMP_SQL_FILE}) from the snapshot ${snapshot} into the database (${TARGET_DB_NAME})"
-  command="restic restore --include ${DB_DUMP_SQL_FILE} --target $RESTORE_DIR_BASE --verify ${snapshot}"
-  echo_info "\nExecuting the command:\n$command\n"
-  eval "$command"
-  echo_info "Restoration done"
-
-  DUMP_FILE_TO_RESTORE="${RESTORE_DIR_BASE}${DB_DUMP_SQL_FILE}"
-  echo_info "Restoring the database ${TARGET_DB_NAME} with the dump (${DUMP_FILE_TO_RESTORE}) into the database (${TARGET_DB_NAME})"
-  RESULT=$(psql -tAc "SELECT 1 FROM pg_database WHERE datname='${TARGET_DB_NAME}'")
-  if [ "$RESULT" == "1" ]; then
-    echo_info "The database ${TARGET_DB_NAME} exits and should be dropped before restoration"
-    echo_info "Dropping the database ${TARGET_DB_NAME} before restoration"
-    command="dropdb ${TARGET_DB_NAME} --force -i"
-    echo_info "\nExecuting the command:\n$command\n"
-    eval "$command"
-    echo_info "Done"
-  fi;
-  echo_info "Creating the database ${TARGET_DB_NAME}"
-  # load the output of pg_restore into a truly empty database (ie template0)
-  createdb -T template0 "${TARGET_DB_NAME}"
-  echo_info "Done"
-  echo_info "Executing the Sql dump"
-
-  echo_info "Done"
-  echo_info "Restoration done and successful"
-}
 
 function backupRestoreCommand(){
 
@@ -205,43 +166,88 @@ function backupRestoreCommand(){
       backupRestoreHelp
       echo_err 'The Snapshot Id should be given as first argument'
       echo_err "  * get one with the 'create ls' command"
-      echo_err "  * or use 'latest' if you want to use the latest snapshot"
+      echo_err "  * or use 'latest' if you want to use the latest SNAPSHOT_ID"
       exit 1
   fi
 
-  snapshot=${ARGS[0]}
-  TARGET_DB_NAME=${ARGS[1]:-}
-  if [ "${TARGET_DB_NAME}" == "" ]; then
-      TARGET_DB_NAME=$CTL_DATABASE_NAME
-  fi
+  SNAPSHOT_ID=""
+  TARGET_DB_NAME=$CTL_DATABASE_NAME
+  DUMP_PATH=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -d|--db)
+        shift
+        TARGET_DB_NAME=$1
+        shift
+        ;;
+      -p|--path)
+        shift
+        DUMP_PATH=$1
+        shift
+        ;;
+      *)
+        if [ "$SNAPSHOT_ID" != "" ]; then
+          backupRestoreHelp
+          echo_err "Only one argument can be given: the snapshotId. We see 2: $SNAPSHOT_ID and $1"
+          exit 1
+        fi
+        SNAPSHOT_ID=${1}
+        shift
+        ;;
+    esac
+  done
 
 
   echo_info "Creating the target restoration directory"
-  RESTORE_DIR="$RESTORE_DIR_BASE/${snapshot}"
+  RESTORE_DIR="$RESTORE_DIR_BASE/${SNAPSHOT_ID}"
   eval_command "mkdir -p $RESTORE_DIR_BASE"
   echo_info "Directory created"
 
-  echo_info "Fetching the backup dump from the snapshot ${snapshot} into the database (${TARGET_DB_NAME})"
-  eval_command "restic restore --include ${DB_DUMP_SNAPSHOT_PATH} --target $RESTORE_DIR_BASE --verify ${snapshot}"
+  INCLUDE_PATH_PATTERN=$DB_DUMP_SNAPSHOT_DIR
+  if [ "$DUMP_PATH" != "" ]; then
+    INCLUDE_PATH_PATTERN=$DUMP_PATH
+  fi
+  echo_info "Fetching the backup dump from the SNAPSHOT_ID ${SNAPSHOT_ID} into the database (${TARGET_DB_NAME})"
+  eval_command "restic restore --include ${INCLUDE_PATH_PATTERN} --target $RESTORE_DIR --verify ${SNAPSHOT_ID}"
   echo_info "Fetching done"
 
-  echo_info "Searching a valid dump file in the snapshot ${snapshot}"
-  ARCHIVE_DUMP_FILE_TO_RESTORE="${RESTORE_DIR}/${DB_DUMP_ARCHIVE_FILE}"
-  if [ -f  "$ARCHIVE_DUMP_FILE_TO_RESTORE" ]; then
-      DUMP_FILE_TO_RESTORE=$ARCHIVE_DUMP_FILE_TO_RESTORE
-      DUMP_FILE_TYPE=$ARCHIVE_DUMP_FORMAT
-  else
-    SQL_DUMP_FILE_TO_RESTORE="${RESTORE_DIR}/${DB_DUMP_SQL_FILE}"
-    if [ ! -f  "$SQL_DUMP_FILE_TO_RESTORE" ]; then
-      echo_err "The snapshot ${snapshot} does have any dump file to restore"
-      echo_err "  * No SQL dump found at $SQL_DUMP_FILE_TO_RESTORE"
-      echo_err "  * No Archive dump found at ${ARCHIVE_DUMP_FILE_TO_RESTORE}"
-      exit 1
+  if [ "$DUMP_PATH" == "" ]; then
+    echo_info "Searching a valid dump file in the SNAPSHOT_ID ${SNAPSHOT_ID}"
+    ARCHIVE_DUMP_FILE_TO_RESTORE="${RESTORE_DIR}/${DB_DUMP_ARCHIVE_FILE}"
+    if [ -f  "$ARCHIVE_DUMP_FILE_TO_RESTORE" ]; then
+        DUMP_FILE_TO_RESTORE=$ARCHIVE_DUMP_FILE_TO_RESTORE
+        DUMP_FILE_TYPE=$ARCHIVE_DUMP_FORMAT
+    else
+      SQL_DUMP_FILE_TO_RESTORE="${RESTORE_DIR}/${DB_DUMP_SQL_FILE}"
+      if [ ! -f  "$SQL_DUMP_FILE_TO_RESTORE" ]; then
+        echo_err "We could not find any dump file to restore in the SNAPSHOT_ID ${SNAPSHOT_ID}"
+        echo_err "  * No SQL dump found at $SQL_DUMP_FILE_TO_RESTORE"
+        echo_err "  * No Archive dump found at ${ARCHIVE_DUMP_FILE_TO_RESTORE}"
+        echo_err ""
+        echo_err "You can give one with the  '--path' parameter"
+        exit 1
+      fi
+      DUMP_FILE_TO_RESTORE=$SQL_DUMP_FILE_TO_RESTORE
+      DUMP_FILE_TYPE=$SQL_DUMP_FORMAT
     fi
-    DUMP_FILE_TO_RESTORE=$SQL_DUMP_FILE_TO_RESTORE
-    DUMP_FILE_TYPE=$SQL_DUMP_FORMAT
+    echo_info "Dump file $DUMP_FILE_TO_RESTORE found"
+  else
+    DUMP_FILE_TO_RESTORE="${RESTORE_DIR}/${DUMP_PATH}"
+    if [ ! -f  "$DUMP_FILE_TO_RESTORE" ]; then
+        echo_err "The SNAPSHOT_ID ${SNAPSHOT_ID} does not contains the ${DUMP_PATH}"
+        echo_err "  * No file found at $DUMP_FILE_TO_RESTORE"
+        exit 1
+    fi
+    if echo "$DUMP_PATH" | grep -q '\.dump$';  then
+      DUMP_FILE_TYPE=$ARCHIVE_DUMP_FORMAT
+    else
+      if ! echo "$DUMP_PATH" | grep -q '\.sql.gz$';  then
+        echo_err "The dump file ($DUMP_PATH) is not an archive (.dump), nor a sql dump (.sql.gz)"
+        exit 1
+      fi
+      DUMP_FILE_TYPE=$SQL_DUMP_FORMAT
+    fi
   fi
-  echo_info "Dump file $DUMP_FILE_TO_RESTORE found"
 
   echo_info "Restoring the database ${TARGET_DB_NAME} with the dump (${DUMP_FILE_TO_RESTORE})"
   echo_info "Checking if the database ${TARGET_DB_NAME} exists"
@@ -288,7 +294,7 @@ function backupCreateCommand(){
       return 1
   fi
 
-  # Cleaning the snapshot directory
+  # Cleaning the SNAPSHOT_ID directory
   clean_snaphost_dir
 
   # Assign the first argument to a string
@@ -299,7 +305,7 @@ function backupCreateCommand(){
         DUMP_FILE=${DB_DUMP_ARCHIVE_FILE}
         EVAL_COMMAND="pg_dump ${CTL_DATABASE_NAME} | gzip  > ${DUMP_FILE}"
         ;;
-      "$SQL_ARCHIVE_FORMAT")
+      "$ARCHIVE_DUMP_FORMAT")
         DUMP_FILE=${DB_DUMP_ARCHIVE_FILE}
         # F means format and c specify the custom format
         # https://www.postgresql.org/docs/current/app-pgdump.html
@@ -311,12 +317,12 @@ function backupCreateCommand(){
          return 1
   esac
 
-  echo_info "Dumping the database (${CTL_DATABASE_NAME}) into the snapshot directory"
+  echo_info "Dumping the database (${CTL_DATABASE_NAME}) into the SNAPSHOT_ID directory"
   eval_command "$EVAL_COMMAND"
   echo_info "Done"
 
-  echo_info "Creating a snapshot"
-  eval_command "restic backup ${DB_DUMP_SNAPSHOT_PATH}"
+  echo_info "Creating a SNAPSHOT_ID"
+  eval_command "restic backup ${DB_DUMP_SNAPSHOT_DIR}"
   echo_info "Snapshot done"
 
   echo_info "Backup done"
@@ -357,20 +363,20 @@ function dumpFetch(){
 
   if [ -z "${ARGS[0]}" ]; then
       echo_err 'The Snapshot Id should be given as first argument'
-      echo_err 'use the dump-ls command to get the available snapshot ids'
+      echo_err 'use the dump-ls command to get the available SNAPSHOT_ID ids'
       # shellcheck disable=SC2016
-      echo_err 'or use `latest` if you want to use the latest snapshot'
+      echo_err 'or use `latest` if you want to use the latest SNAPSHOT_ID'
       exit 1
   fi
-  snapshot=${ARGS[0]}
+  SNAPSHOT_ID=${ARGS[0]}
   if [ -z "${ARGS[1]}" ]; then
       echo_err 'A path should be given as second argument'
       exit 1
   fi
   path=${ARGS[1]}
-  echo_info "Fetching the path (${path}) from the snapshot id ${snapshot}"
+  echo_info "Fetching the path (${path}) from the SNAPSHOT_ID id ${SNAPSHOT_ID}"
 
-  command="restic restore --include ${path} --target $RESTORE_DIR_BASE --verify ${snapshot}"
+  command="restic restore --include ${path} --target $RESTORE_DIR_BASE --verify ${SNAPSHOT_ID}"
   echo_info "\nExecuting the command:\n$command\n"
   eval "$command"
 
@@ -530,19 +536,21 @@ mkdir -p "$PG_DUMP_DATA"
 # Constant for the dump format
 ###############################
 SQL_DUMP_FORMAT=sql
-SQL_ARCHIVE_FORMAT=archive
+ARCHIVE_DUMP_FORMAT=archive
 ###############################
 # Constant for the dump files
 ###############################
-# The snapshot directory is the directory that restic snapshots.
+# The SNAPSHOT_ID directory is the directory that restic snapshots.
 # ie before every dump creation/restoration,
 # the directory is cleaned to have only one dump at a time
-DB_DUMP_SNAPSHOT_PATH="$PG_DUMP_DATA/snapshot"
-mkdir -p "$DB_DUMP_SNAPSHOT_PATH"
+DB_DUMP_SNAPSHOT_DIR="$PG_DUMP_DATA/SNAPSHOT_ID"
+mkdir -p "$DB_DUMP_SNAPSHOT_DIR"
 # All dump files start with this prefix path
-DB_DUMP_PATH_PREFIX="$DB_DUMP_SNAPSHOT_PATH/dumpfile-db"
-DB_DUMP_SQL_FILE="$DB_DUMP_PATH_PREFIX-${CTL_DATABASE_NAME}.sql.gz"
-DB_DUMP_ARCHIVE_FILE="$DB_DUMP_PATH_PREFIX-${CTL_DATABASE_NAME}.dump"
+DB_DUMP_PATH_PREFIX="$DB_DUMP_SNAPSHOT_DIR/dumpfile-db"
+DB_DUMP_ARCHIVE_EXTENSION=".dump"
+DB_DUMP_SQL_EXTENSION=".sql.gz"
+DB_DUMP_SQL_FILE="$DB_DUMP_PATH_PREFIX-${CTL_DATABASE_NAME}$DB_DUMP_SQL_EXTENSION"
+DB_DUMP_ARCHIVE_FILE="$DB_DUMP_PATH_PREFIX-${CTL_DATABASE_NAME}$DB_DUMP_ARCHIVE_EXTENSION"
 DB_DUMP_ARCHIVE_DIR="$DB_DUMP_PATH_PREFIX-${CTL_DATABASE_NAME}"
 # RESTORE_DIR_BASE where the files restored are going
 RESTORE_DIR_BASE=/tmp
