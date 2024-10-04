@@ -1,0 +1,26 @@
+#!/bin/bash
+# This script should be run from the root project directory
+
+
+set -Eeuo pipefail
+
+# shellcheck disable=SC1090
+source "$(libpath echo.sh)"
+
+echo::info "Copy the bash lib"
+
+# Vendor
+# Install bash-lib
+VENDOR_BASH_LIB_DIR="$PWD/resources/bash/bash-lib"
+rm -rf "$VENDOR_BASH_LIB_DIR"
+mkdir -p "$VENDOR_BASH_LIB_DIR"
+cp "$CODE_HOME"/bash-lib/README.md "$VENDOR_BASH_LIB_DIR"/README.md
+mkdir -p "$VENDOR_BASH_LIB_DIR/bin"
+cp "$CODE_HOME"/bash-lib/bin/* "$VENDOR_BASH_LIB_DIR/bin"
+mkdir -p "$VENDOR_BASH_LIB_DIR/lib"
+cp "$CODE_HOME"/bash-lib/lib/* "$VENDOR_BASH_LIB_DIR/lib"
+
+
+echo::info "Building"
+dbuild
+

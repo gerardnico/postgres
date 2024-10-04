@@ -219,9 +219,16 @@ ENV TZ='Etc/UTC'
 # The base Postgres image does not use the postgress environment variable
 # Postgres Local Connection env
 # so that when logged in, we can connect automatically and wal-g also
+
+# Install env
 ADD resources/bash/profile.d/* /etc/profile.d
-RUN mkdir -p /usr/local/lib/bash
-ADD resources/bash/lib/* /usr/local/lib/bash
+ENV BASH_ENV=/etc/profile
+
+# Install bash-lib
+RUN mkdir -p /usr/local/lib
+ADD resources/bash/bash-lib/lib/* /usr/local/lib
+ADD --chmod=0775 resources/bash/bash-lib/bin/* /usr/local/bin
+
 
 ####################################
 # Postgres Prometheus exporter

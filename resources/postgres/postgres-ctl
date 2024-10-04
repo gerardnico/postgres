@@ -7,36 +7,37 @@
 # It's a wrapper around the docker entrypoint
 # https://github.com/docker-library/postgres/blob/d08757ccb56ee047efd76c41dbc148e2e2c4f68f/16/bookworm/docker-entrypoint.sh#L161
 #
-
 set -Eeuo pipefail
+# shellcheck disable=SC1090
+source "$(libpath echo.sh)"
 
 # Pg Cron Conf
 PG_CRON_DB=${PG_CRON_DB:-}
 if [ "$PG_CRON_DB" != "" ]; then
   if [ "$PG_CRON_DB" != "$POSTGRES_DB" ]; then
-    echo_err "The pg cron env (PG_CRON_DB) should have the value ($POSTGRES_DB), not the value ($PG_CRON_DB)"
-    echo_err "Sorry, we don't support multi-database yet."
+    echo::err "The pg cron env (PG_CRON_DB) should have the value ($POSTGRES_DB), not the value ($PG_CRON_DB)"
+    echo::err "Sorry, we don't support multi-database yet."
     exit 1;
   fi
-  echo_info "PG Cron enabled on the database $PG_CRON_DB. Setting the default database name"
+  echo::info "PG Cron enabled on the database $PG_CRON_DB. Setting the default database name"
   sed -i "s/cron\.database_name = '.*'/cron\.database_name = '$PG_CRON_DB'/" /etc/postgresql/postgresql.conf
 else
-  echo_info "PG_CRON_DB env not found. PG Cron not enabled"
+  echo::info "PG_CRON_DB env not found. PG Cron not enabled"
 fi
 
 # Recovery mode via WAL
 # https://www.postgresql.org/docs/current/continuous-archiving.html
 RECOVERY_SIGNAL_PATH=$PGDATA/recovery.signal
 if [ -f "$RECOVERY_SIGNAL_PATH" ]; then
-    echo_info "Recovery file signal found ($RECOVERY_SIGNAL_PATH)"
-    echo_info "Deleting the actual pgdata directory"
+    echo::info "Recovery file signal found ($RECOVERY_SIGNAL_PATH)"
+    echo::info "Deleting the actual pgdata directory"
     rm -rf "${PGDATA:?}"/*
-    echo_info "Fetching the latest backup"
+    echo::info "Fetching the latest backup"
     wal-g backup-fetch "$PGDATA" LATEST
-    echo_info "Recreating the recovery signal file"
+    echo::info "Recreating the recovery signal file"
     touch "$RECOVERY_SIGNAL_PATH"
 else
-    echo_info "No Wal Recovery file signal found ($RECOVERY_SIGNAL_PATH)"
+    echo::info "No Wal Recovery file signal found ($RECOVERY_SIGNAL_PATH)"
 fi
 
 ## Rclone
@@ -53,28 +54,28 @@ fi
 ## Only if the repo is set
 RESTIC_REPOSITORY=${RESTIC_REPOSITORY:-}
 if [[ ${RESTIC_REPOSITORY} != "" ]]; then
-  echo_info "Restic repo configured, checking the configuration"
+  echo::info "Restic repo configured, checking the configuration"
   RESTIC_PASSWORD=${RESTIC_PASSWORD:-}
   if [[ ${RESTIC_PASSWORD+x} == "" ]]; then
-    echo_err "RESTIC_PASSWORD is not set";
+    echo::err "RESTIC_PASSWORD is not set";
     exit 1;
   fi
   if  ! restic snapshots > /dev/null; then
-    echo_info "Restic Repo not found - Restic init at ${RESTIC_REPOSITORY}"
+    echo::info "Restic Repo not found - Restic init at ${RESTIC_REPOSITORY}"
     COMMAND="restic init -r $RESTIC_REPOSITORY"
-    echo_info "Executing the command: $COMMAND"
+    echo::info "Executing the command: $COMMAND"
     eval "$COMMAND"
-    echo_info "Done at ${RESTIC_REPOSITORY}"
+    echo::info "Done at ${RESTIC_REPOSITORY}"
   else
-    echo_info "RESTIC Repo already configured";
+    echo::info "RESTIC Repo already configured";
   fi
 else
-  echo_info "No restic repo configured - Ignoring"
+  echo::info "No restic repo configured - Ignoring"
 fi
 
 # Create the data repositories
 # They should be owned by the running user
-echo_info "Create the data repositories"
+echo::info "Create the data repositories"
 mkdir -p "${DBCTL_HOME}"
 mkdir -p "${PG_DUMP_DATA}"
 
@@ -85,5 +86,5 @@ mkdir -p "${PG_DUMP_DATA}"
 # docker-entrypoint.sh of the postgres image is to bring the same behavior
 # It performs a initdb
 # https://www.postgresql.org/docs/current/creating-cluster.html
-echo_info "Starting postgres with docker-entrypoint.sh"
+echo::info "Starting postgres with docker-entrypoint.sh"
 docker-entrypoint.sh "$@"

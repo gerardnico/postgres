@@ -15,7 +15,7 @@ chmod 0777 "$MOUNT_POINT"
 # Mount dbctl to edit it
 DBCTL_PATH="$PWD/resources/dbctl/dbctl"
 if [[ ! -f "$DBCTL_PATH" ]]; then
-  echo_err "dbctl not found at $DBCTL_PATH"
+  echo::err "dbctl not found at $DBCTL_PATH"
   exit 1
 fi
 chmod +x "$DBCTL_PATH"
@@ -23,7 +23,7 @@ chmod +x "$DBCTL_PATH"
 # Mount profile.d to edit the bash script
 PROFILE_D="$PWD/resources/bash"
 if [[ ! -d "$PROFILE_D" ]]; then
-  echo_err "bash profile dir not found at $PROFILE_D"
+  echo::err "bash profile dir not found at $PROFILE_D"
   exit 1
 fi
 

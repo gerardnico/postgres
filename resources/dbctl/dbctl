@@ -8,6 +8,9 @@
 # E - the ERR trap is inherited by shell functions
 set -Eeuo pipefail
 
+# shellcheck disable=SC1090
+source "$(libpath echo.sh)"
+
 function finish() {
   printf "\n%s has finished\n" "${CLI_NAME}"
 }
@@ -16,16 +19,16 @@ trap finish EXIT
 # Execute a command
 eval_command(){
   local EVAL_COMMAND=$1
-  echo_info "Executing the command:\n$EVAL_COMMAND\n"
+  echo::info "Executing the command:\n$EVAL_COMMAND\n"
   eval "$EVAL_COMMAND"
 }
 
 cleaning_snapshot_dir(){
 
-  echo_info "Cleaning the SNAPSHOT_ID directory"
+  echo::info "Cleaning the SNAPSHOT_ID directory"
   eval_command "rm -rf $DB_DUMP_SNAPSHOT_DIR"
   eval_command "mkdir -p $DB_DUMP_SNAPSHOT_DIR"
-  echo_info "Directory cleaned"
+  echo::info "Directory cleaned"
 
 }
 
@@ -35,43 +38,43 @@ validate_postgres_dump() {
 
     # Check if file exists
     if [[ ! -f "$dump_file" ]]; then
-        echo_err "Error: File $dump_file does not exist."
+        echo::err "Error: File $dump_file does not exist."
         return 1
     fi
 
     # Check file extension
     if [[ "${dump_file##*.}" != "dump" ]]; then
-        echo_warn "Warning: File does not have .dump extension."
+        echo::warn "Warning: File does not have .dump extension."
     fi
 
     # Check if file is empty
     if [[ ! -s "$dump_file" ]]; then
-        echo_err "Error: File is empty."
+        echo::err "Error: File is empty."
         return 1
     fi
 
     # Check file format (custom or plain)
     if head -c 5 "$dump_file" | grep -q "PGDMP"; then
-        echo_info "Info: File appears to be in custom format."
+        echo::info "Info: File appears to be in custom format."
         format="custom"
     else
-        echo_info "Info: File appears to be in plain text format."
+        echo::info "Info: File appears to be in plain text format."
         format="plain"
     fi
 
     # Validate file integrity
     if [[ "$format" == "custom" ]]; then
         if pg_restore -l "$dump_file" &>/dev/null; then
-            echo_info "pg_restore can read the file structure."
+            echo::info "pg_restore can read the file structure."
         else
-            echo_err "pg_restore cannot read the file structure. The dump may be corrupted."
+            echo::err "pg_restore cannot read the file structure. The dump may be corrupted."
             return 1
         fi
     else
         if grep -q "PostgreSQL database dump complete" "$dump_file"; then
-            echo_info "File contains complete dump signature."
+            echo::info "File contains complete dump signature."
         else
-            echo_warn "File does not contain the complete dump signature. It may be incomplete."
+            echo::warn "File does not contain the complete dump signature. It may be incomplete."
         fi
     fi
 
@@ -81,8 +84,8 @@ validate_postgres_dump() {
     else
         table_count=$(grep -c "CREATE TABLE" "$dump_file")
     fi
-    echo_info "Info: Dump contains approximately $table_count tables."
-    echo_info "Validation complete. The dump file appears to be valid."
+    echo::info "Info: Dump contains approximately $table_count tables."
+    echo::info "Validation complete. The dump file appears to be valid."
     return 0
 }
 
@@ -169,35 +172,35 @@ function help() {
 
 function psLs(){
   command="overmind ps"
-  echo_info "\nExecuting the command:\n$command\n"
+  echo::info "\nExecuting the command:\n$command\n"
   eval "$command"
 }
 
 function psLog(){
   if [ -z "${ARGS[0]}" ]; then
-        echo_err 'The process name should be given as first argument'
-        echo_err 'use the ps-ls command to get the available process name'
+        echo::err 'The process name should be given as first argument'
+        echo::err 'use the ps-ls command to get the available process name'
         exit 1
     fi
     process=${ARGS[0]}
     command="overmind log ${process}"
-    echo_info "\nExecuting the command:\n$command\n"
+    echo::info "\nExecuting the command:\n$command\n"
     eval "$command"
-    echo_info "$process log done"
+    echo::info "$process log done"
 }
 
 function psRestart(){
   if [ -z "${ARGS[0]}" ]; then
-      echo_err 'The process name should be given as first argument'
-      echo_err 'use the ps-ls command to get the available process name'
+      echo::err 'The process name should be given as first argument'
+      echo::err 'use the ps-ls command to get the available process name'
       exit 1
   fi
   process=${ARGS[0]}
   command="overmind restart ${process}"
   sleep 5 && overmind restart sql_exporter; cat /proc/1/fd/1 /proc/1/fd/2
-  echo_info "\nExecuting the command:\n$command\n"
+  echo::info "\nExecuting the command:\n$command\n"
   eval "$command"
-  echo_info "$process restarted"
+  echo::info "$process restarted"
 }
 
 
@@ -221,9 +224,9 @@ function backupRestoreCommand(){
 
   if [ -z "${ARGS[0]}" ]; then
       backupRestoreHelp
-      echo_err 'The Snapshot Id should be given as first argument'
-      echo_err "  * get one with the 'create ls' command"
-      echo_err "  * or use 'latest' if you want to use the latest SNAPSHOT_ID"
+      echo::err 'The Snapshot Id should be given as first argument'
+      echo::err "  * get one with the 'create ls' command"
+      echo::err "  * or use 'latest' if you want to use the latest SNAPSHOT_ID"
       exit 1
   fi
 
@@ -245,7 +248,7 @@ function backupRestoreCommand(){
       *)
         if [ "$SNAPSHOT_ID" != "" ]; then
           backupRestoreHelp
-          echo_err "Only one argument can be given: the snapshotId. We see 2: $SNAPSHOT_ID and $1"
+          echo::err "Only one argument can be given: the snapshotId. We see 2: $SNAPSHOT_ID and $1"
           exit 1
         fi
         SNAPSHOT_ID=${1}
@@ -255,21 +258,21 @@ function backupRestoreCommand(){
   done
 
 
-  echo_info "Creating the target restoration directory"
+  echo::info "Creating the target restoration directory"
   RESTORE_DIR="$RESTORE_DIR_BASE/${SNAPSHOT_ID}"
   eval_command "mkdir -p $RESTORE_DIR_BASE"
-  echo_info "Directory created"
+  echo::info "Directory created"
 
   INCLUDE_PATH_PATTERN=$DB_DUMP_SNAPSHOT_DIR
   if [ "$DUMP_PATH" != "" ]; then
     INCLUDE_PATH_PATTERN=$DUMP_PATH
   fi
-  echo_info "Fetching the backup dump from the SNAPSHOT_ID ${SNAPSHOT_ID} into the database (${TARGET_DB_NAME})"
+  echo::info "Fetching the backup dump from the SNAPSHOT_ID ${SNAPSHOT_ID} into the database (${TARGET_DB_NAME})"
   eval_command "restic restore --include ${INCLUDE_PATH_PATTERN} --target $RESTORE_DIR --verify ${SNAPSHOT_ID}"
-  echo_info "Fetching done"
+  echo::info "Fetching done"
 
   if [ "$DUMP_PATH" == "" ]; then
-    echo_info "Searching a valid dump file in the SNAPSHOT_ID ${SNAPSHOT_ID}"
+    echo::info "Searching a valid dump file in the SNAPSHOT_ID ${SNAPSHOT_ID}"
     ARCHIVE_DUMP_FILE_TO_RESTORE="${RESTORE_DIR}/${DB_DUMP_ARCHIVE_FILE}"
     if [ -f  "$ARCHIVE_DUMP_FILE_TO_RESTORE" ]; then
         DUMP_FILE_TO_RESTORE=$ARCHIVE_DUMP_FILE_TO_RESTORE
@@ -277,60 +280,60 @@ function backupRestoreCommand(){
     else
       SQL_DUMP_FILE_TO_RESTORE="${RESTORE_DIR}/${DB_DUMP_SQL_FILE}"
       if [ ! -f  "$SQL_DUMP_FILE_TO_RESTORE" ]; then
-        echo_err "We could not find any dump file to restore in the SNAPSHOT_ID ${SNAPSHOT_ID}"
-        echo_err "  * No SQL dump found at $SQL_DUMP_FILE_TO_RESTORE"
-        echo_err "  * No Archive dump found at ${ARCHIVE_DUMP_FILE_TO_RESTORE}"
-        echo_err ""
-        echo_err "You can give one with the  '--path' parameter"
+        echo::err "We could not find any dump file to restore in the SNAPSHOT_ID ${SNAPSHOT_ID}"
+        echo::err "  * No SQL dump found at $SQL_DUMP_FILE_TO_RESTORE"
+        echo::err "  * No Archive dump found at ${ARCHIVE_DUMP_FILE_TO_RESTORE}"
+        echo::err ""
+        echo::err "You can give one with the  '--path' parameter"
         exit 1
       fi
       DUMP_FILE_TO_RESTORE=$SQL_DUMP_FILE_TO_RESTORE
       DUMP_FILE_TYPE=$SQL_DUMP_FORMAT
     fi
-    echo_info "Dump file $DUMP_FILE_TO_RESTORE found"
+    echo::info "Dump file $DUMP_FILE_TO_RESTORE found"
   else
     DUMP_FILE_TO_RESTORE="${RESTORE_DIR}/${DUMP_PATH}"
     if [ ! -f  "$DUMP_FILE_TO_RESTORE" ]; then
-        echo_err "The SNAPSHOT_ID ${SNAPSHOT_ID} does not contains the ${DUMP_PATH}"
-        echo_err "  * No file found at $DUMP_FILE_TO_RESTORE"
+        echo::err "The SNAPSHOT_ID ${SNAPSHOT_ID} does not contains the ${DUMP_PATH}"
+        echo::err "  * No file found at $DUMP_FILE_TO_RESTORE"
         exit 1
     fi
     if echo "$DUMP_PATH" | grep -q '\.dump$';  then
       DUMP_FILE_TYPE=$ARCHIVE_DUMP_FORMAT
     else
       if ! echo "$DUMP_PATH" | grep -q '\.sql.gz$';  then
-        echo_err "The dump file ($DUMP_PATH) is not an archive (.dump), nor a sql dump (.sql.gz)"
+        echo::err "The dump file ($DUMP_PATH) is not an archive (.dump), nor a sql dump (.sql.gz)"
         exit 1
       fi
       DUMP_FILE_TYPE=$SQL_DUMP_FORMAT
     fi
   fi
 
-  echo_info "Validating the dump file"
+  echo::info "Validating the dump file"
   validate_postgres_dump "${DUMP_FILE_TO_RESTORE}"
 
-  echo_info "Restoring the database ${TARGET_DB_NAME} with the dump (${DUMP_FILE_TO_RESTORE})"
-  echo_info "Checking if the database ${TARGET_DB_NAME} exists"
+  echo::info "Restoring the database ${TARGET_DB_NAME} with the dump (${DUMP_FILE_TO_RESTORE})"
+  echo::info "Checking if the database ${TARGET_DB_NAME} exists"
   if [ "$(psql -tAc "SELECT 1 FROM pg_database WHERE datname='${TARGET_DB_NAME}'")" == "1" ]; then
-    echo_info "The database ${TARGET_DB_NAME} exits and should be dropped before restoration"
-    echo_info "Dropping the database ${TARGET_DB_NAME} before restoration? (y/N)"
+    echo::info "The database ${TARGET_DB_NAME} exits and should be dropped before restoration"
+    echo::info "Dropping the database ${TARGET_DB_NAME} before restoration? (y/N)"
     read -r answer
     if [ "$answer" != "y" ]; then
-        echo_info "Exiting..."
+        echo::info "Exiting..."
         exit 1
     fi
     eval_command "dropdb ${TARGET_DB_NAME} --force -i"
-    echo_info "Dropping Done"
+    echo::info "Dropping Done"
   else
-    echo_info "The database does not exist"
+    echo::info "The database does not exist"
   fi;
 
-  echo_info "Creating an empty database ${TARGET_DB_NAME}"
+  echo::info "Creating an empty database ${TARGET_DB_NAME}"
   # load the output of pg_restore into a truly empty database (ie template0)
   eval_command "createdb -T template0 ${TARGET_DB_NAME}"
-  echo_info "Database created"
+  echo::info "Database created"
 
-  echo_info "Restoring the database"
+  echo::info "Restoring the database"
   if [ "$DUMP_FILE_TYPE" == "$SQL_DUMP_FORMAT" ]; then
     eval_command "gunzip < ${DUMP_FILE_TO_RESTORE} | psql --set ON_ERROR_STOP=on --single-transaction ${TARGET_DB_NAME}";
   else
@@ -338,9 +341,9 @@ function backupRestoreCommand(){
     # If the connection does not work, try with psql
     eval_command "pg_restore -d ${TARGET_DB_NAME} ${DUMP_FILE_TO_RESTORE}"
   fi
-  echo_info "Restoration done"
+  echo::info "Restoration done"
 
-  echo_info "Bye"
+  echo::info "Bye"
 
 }
 
@@ -350,7 +353,7 @@ function backupCreateCommand(){
   # Check if at least one argument is provided
   if [[ $# -eq 0 ]]; then
       backupCreateHelp
-      echo_err "No arguments provided."
+      echo::err "No arguments provided."
       return 1
   fi
 
@@ -373,26 +376,26 @@ function backupCreateCommand(){
         ;;
        *)
          backupCreateHelp
-         echo_err "Dump format $DUMP_FORMAT unknown"
+         echo::err "Dump format $DUMP_FORMAT unknown"
          return 1
   esac
 
-  echo_info "Dumping the database (${CTL_DATABASE_NAME}) into the SNAPSHOT_ID directory"
+  echo::info "Dumping the database (${CTL_DATABASE_NAME}) into the SNAPSHOT_ID directory"
   eval_command "$EVAL_COMMAND"
-  echo_info "Done"
+  echo::info "Done"
 
-  echo_info "Creating a SNAPSHOT_ID"
+  echo::info "Creating a SNAPSHOT_ID"
   eval_command "restic backup ${DB_DUMP_SNAPSHOT_DIR}"
-  echo_info "Snapshot done"
+  echo::info "Snapshot done"
 
-  echo_info "Backup done"
+  echo::info "Backup done"
 
 }
 
 function dbDirDump(){
 
-  echo_info "Dumping the database (${CTL_DATABASE_NAME}) at ${DB_DUMP_ARCHIVE_DIR}"
-  echo_info "Removing ${DB_DUMP_ARCHIVE_DIR}"
+  echo::info "Dumping the database (${CTL_DATABASE_NAME}) at ${DB_DUMP_ARCHIVE_DIR}"
+  echo::info "Removing ${DB_DUMP_ARCHIVE_DIR}"
   rm -f "${DB_DUMP_ARCHIVE_DIR}"/*
   if [ -d "${DB_DUMP_ARCHIVE_DIR}" ]; then
       rmdir "${DB_DUMP_ARCHIVE_DIR}"
@@ -401,18 +404,18 @@ function dbDirDump(){
   # F means format and d specify the directory format
   # https://www.postgresql.org/docs/current/app-pgdump.html
   command="pg_dump --format=d ${CTL_DATABASE_NAME} -f ${DB_DUMP_ARCHIVE_DIR}"
-  echo_info "\nExecuting the command:\n$command\n"
+  echo::info "\nExecuting the command:\n$command\n"
   eval "$command"
 
-  echo_info "Done"
-  echo_info "Loading into Restic S3 repo (${PG_DUMP_DATA})"
+  echo::info "Done"
+  echo::info "Loading into Restic S3 repo (${PG_DUMP_DATA})"
 
   command="restic backup ${PG_DUMP_DATA}"
-  echo_info "\nExecuting the command:\n$command\n"
+  echo::info "\nExecuting the command:\n$command\n"
   eval "$command"
 
-  echo_info "Restic upload done"
-  echo_info "Backup done"
+  echo::info "Restic upload done"
+  echo::info "Backup done"
 }
 
 function backupLsCommand(){
@@ -422,27 +425,27 @@ function backupLsCommand(){
 function dumpFetch(){
 
   if [ -z "${ARGS[0]}" ]; then
-      echo_err 'The Snapshot Id should be given as first argument'
-      echo_err 'use the dump-ls command to get the available SNAPSHOT_ID ids'
+      echo::err 'The Snapshot Id should be given as first argument'
+      echo::err 'use the dump-ls command to get the available SNAPSHOT_ID ids'
       # shellcheck disable=SC2016
-      echo_err 'or use `latest` if you want to use the latest SNAPSHOT_ID'
+      echo::err 'or use `latest` if you want to use the latest SNAPSHOT_ID'
       exit 1
   fi
   SNAPSHOT_ID=${ARGS[0]}
   if [ -z "${ARGS[1]}" ]; then
-      echo_err 'A path should be given as second argument'
+      echo::err 'A path should be given as second argument'
       exit 1
   fi
   path=${ARGS[1]}
-  echo_info "Fetching the path (${path}) from the SNAPSHOT_ID id ${SNAPSHOT_ID}"
+  echo::info "Fetching the path (${path}) from the SNAPSHOT_ID id ${SNAPSHOT_ID}"
 
   command="restic restore --include ${path} --target $RESTORE_DIR_BASE --verify ${SNAPSHOT_ID}"
-  echo_info "\nExecuting the command:\n$command\n"
+  echo::info "\nExecuting the command:\n$command\n"
   eval "$command"
 
   targetDumpFileInRestore="${RESTORE_DIR_BASE}${path}"
-  echo_info "Fetch done"
-  echo_info "The restored file is available at ${targetDumpFileInRestore}"
+  echo::info "Fetch done"
+  echo::info "The restored file is available at ${targetDumpFileInRestore}"
 
 }
 
@@ -485,7 +488,7 @@ function backupSqlCommand(){
     # Check if at least one argument is provided
     if [[ $# -eq 0 ]]; then
         backupCreateHelp
-        echo_err "No arguments provided."
+        echo::err "No arguments provided."
         return 1
     fi
 
@@ -508,7 +511,7 @@ function backupCommand(){
   # Check if at least one argument is provided
   if [[ $# -eq 0 ]]; then
       backupCommandHelp
-      echo_err "No arguments provided."
+      echo::err "No arguments provided."
       return 1
   fi
 
@@ -548,12 +551,12 @@ function backupCommand(){
 }
 function backupPruneCommand(){
 
-  echo_info "Rolling the dump files (forget and prune)"
+  echo::info "Rolling the dump files (forget and prune)"
   command="restic forget --prune ${DBCTL_FORGET_POLICY:---keep-hourly 5 --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 3}"
-  echo_info "\nExecuting the command:\n$command\n"
+  echo::info "\nExecuting the command:\n$command\n"
   eval "$command"
 
-  echo_info "Data check with subset"
+  echo::info "Data check with subset"
   COUNTER_FILE="$DATA_HOME/dbctl-check-subset-counter"
   COUNTER_TOTAL=${DBCTL_CHECK_SUBSET:-5}
   if [ ! -f "$COUNTER_FILE" ]; then
@@ -567,10 +570,10 @@ function backupPruneCommand(){
   echo "$counter" > "$COUNTER_FILE"
 
   command="restic check --read-data-subset=$counter/$COUNTER_TOTAL"
-  echo_info "\nExecuting the command:\n$command\n"
+  echo::info "\nExecuting the command:\n$command\n"
   eval "$command"
 
-  echo_info "Dump Prune done"
+  echo::info "Dump Prune done"
 }
 
 #################################
@@ -581,14 +584,14 @@ if [ -z "${CTL_DATABASE_NAME}" ]; then
   CTL_DATABASE_NAME=${POSTGRES_USER}
 fi;
 if [ -z "${CTL_DATABASE_NAME}" ]; then
-  echo_err "The database could not be determined via POSTGRES_DB or POSTGRES_USER"
+  echo::err "The database could not be determined via POSTGRES_DB or POSTGRES_USER"
   exit 1;
 fi;
 
 ## Dump parameter
 PG_DUMP_DATA=${PG_DUMP_DATA:-}
 if [[ ${PG_DUMP_DATA} == "" ]]; then
-    echo_err "The PG_DUMP_DATA var is unknown"
+    echo::err "The PG_DUMP_DATA var is unknown"
     exit 1;
 fi;
 mkdir -p "$PG_DUMP_DATA"
@@ -618,7 +621,7 @@ RESTORE_DIR_BASE=/tmp
 
 CLI_NAME=$(basename "$0") # Name of the cli
 if [[ -z ${DBCTL_LOG_FILE} ]]; then
-  echo_err "The DBCTL_LOG_FILE env is mandatory"
+  echo::err "The DBCTL_LOG_FILE env is mandatory"
   exit 1
 fi
 
@@ -628,7 +631,7 @@ fi
 
 if [[ $# -eq 0 ]]; then
   help
-  echo_err 'No command was given.'
+  echo::err 'No command was given.'
   exit 1
 fi
 
@@ -692,7 +695,7 @@ psql)
   ;;
 job-ls)
   EVAL_COMMAND="psql -c 'select * from cron.job_run_details order by start_time desc limit 5'"
-  echo_info "Executing the command:\n$EVAL_COMMAND"
+  echo::info "Executing the command:\n$EVAL_COMMAND"
   eval "$EVAL_COMMAND"
   ;;
 help)
@@ -700,7 +703,7 @@ help)
   ;;
 *)
   help
-  echo_err "The command $COMMAND is unknown"
+  echo::err "The command $COMMAND is unknown"
   exit 1
   ;;
 esac
