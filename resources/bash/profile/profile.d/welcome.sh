@@ -1,4 +1,5 @@
 
+source bashlib-echo.sh
 
 echo::info "User: $USER, UID: $USER_UID, GID: $(id -g), Groups: $USER_GROUPS"
 echo::info ""

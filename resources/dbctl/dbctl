@@ -8,8 +8,9 @@
 # E - the ERR trap is inherited by shell functions
 set -Eeuo pipefail
 
-# shellcheck disable=SC1090
-source "$(libpath echo.sh)"
+source bashlib-echo.sh
+source bashlib-error.sh
+error::set_trap
 
 function finish() {
   printf "\n%s has finished\n" "${CLI_NAME}"
@@ -220,7 +221,7 @@ function psStatus(){
 }
 
 
-function backupRestoreCommand(){
+function backup_restore_command(){
 
   if [ -z "${ARGS[0]}" ]; then
       backupRestoreHelp
@@ -528,7 +529,7 @@ function backupCommand(){
       backupCreateCommand "${ARGS[@]}"
       ;;
     restore)
-      backupRestoreCommand "${ARGS[@]}"
+      backup_restore_command "${ARGS[@]}"
       ;;
     db-backp-dir-dump)
       dbDirDump
@@ -656,7 +657,7 @@ backup)
   backupCommand "${ARGS[@]}"
   ;;
 restore)
-  backupRestoreCommand "${ARGS[@]}"
+  backup_restore_command "${ARGS[@]}"
   ;;
 db-ls)
   psql -c "\l"

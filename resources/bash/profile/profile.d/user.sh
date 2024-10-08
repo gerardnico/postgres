@@ -1,9 +1,7 @@
 #!/bin/bash
 
-
 # This script is called by `/etc/profile`
-# Run on non-interactive, ie when the terminal starts
-
+source bashlib-echo.sh
 
 USER_UID=$(id -u)
 # User is needed to change the permissions with supervisor on the socket
@@ -17,7 +15,7 @@ if [ "$HOME" == '/' ] && [ "$USER_UID" != '0' ]; then
   # such as `error: could not lock config file //.gitconfig: Permission denied`
   # Issue: https://gitlab.com/gitlab-org/gitlab-runner/-/issues/37408
   export HOME=/home/$USER
-  echo "HOME: $HOME"
+  echo::info "HOME: $HOME"
   if [ ! -d "$HOME" ]; then
       echo::info "Creating HOME=$HOME"
       mkdir -p "$HOME"

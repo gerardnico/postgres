@@ -8,8 +8,7 @@
 # https://github.com/docker-library/postgres/blob/d08757ccb56ee047efd76c41dbc148e2e2c4f68f/16/bookworm/docker-entrypoint.sh#L161
 #
 set -Eeuo pipefail
-# shellcheck disable=SC1090
-source "$(libpath echo.sh)"
+source bashlib-echo.sh
 
 # Pg Cron Conf
 PG_CRON_DB=${PG_CRON_DB:-}

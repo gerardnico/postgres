@@ -221,13 +221,18 @@ ENV TZ='Etc/UTC'
 # so that when logged in, we can connect automatically and wal-g also
 
 # Install env
-ADD resources/bash/profile.d/* /etc/profile.d
+ADD resources/bash/profile/profile.d/* /etc/profile.d
+ADD resources/bash/profile/profile /etc/profile
 ENV BASH_ENV=/etc/profile
 
-# Install bash-lib
-RUN mkdir -p /usr/local/lib
-ADD resources/bash/bash-lib/lib/* /usr/local/lib
-ADD --chmod=0775 resources/bash/bash-lib/bin/* /usr/local/bin
+# Install bash-lib into its own directory so that we can mount it
+RUN mkdir -p /usr/local/lib/bash-lib
+ADD resources/bash/bash-lib/lib/* /usr/local/lib/bash-lib
+# Lib is not in the path by default
+ENV PATH="/usr/local/lib/bash-lib:${PATH}"
+RUN mkdir -p /usr/local/bin/bash-lib
+ADD --chmod=0775 resources/bash/bash-lib/bin/* /usr/local/bin/bash-lib
+ENV PATH="/usr/local/bin/bash-lib:${PATH}"
 
 
 ####################################

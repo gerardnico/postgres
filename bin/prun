@@ -6,6 +6,7 @@
 # -d \
 
 ## Scripts need to have execution
+source bashlib-echo.sh
 
 # Create the mount point to give it the right permissions
 MOUNT_POINT="$PWD/mount"
@@ -21,7 +22,7 @@ fi
 chmod +x "$DBCTL_PATH"
 
 # Mount profile.d to edit the bash script
-PROFILE_D="$PWD/resources/bash"
+PROFILE_D="$PWD/resources/bash/profile/profile.d"
 if [[ ! -d "$PROFILE_D" ]]; then
   echo::err "bash profile dir not found at $PROFILE_D"
   exit 1
@@ -32,7 +33,7 @@ fi
 # ERROR:  could not resize shared memory segment . . . : No space left on device.
 # You will want to pass --shm-size=256MB
 
-drun \
+dkrun \
   --mount type=bind,source="${DBCTL_PATH}",target=/usr/local/bin/dbctl \
   -v "${MOUNT_POINT}":/data \
   -v "${PROFILE_D}":/etc/profile.d \

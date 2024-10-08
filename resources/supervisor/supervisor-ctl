@@ -2,19 +2,24 @@
 
 # Setting strictly bash
 set -Eeuo pipefail
-# shellcheck disable=SC1090
-source "$(libpath echo.sh)"
+
+# The path at this point is always
+# /usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
+# even if you have change it in the Dockerfile
+# We add the library directory then
+#PATH=/usr/local/lib:$PATH
+source bashlib-echo.sh
 
 SUPERVISOR_CONF_PATH=${SUPERVISOR_CONF_PATH:-/supervisord.conf}
 
 LOG_HOME=${LOG_HOME:-/var/log}
 
-# Get the bash environments
-for file in /etc/profile.d/*.sh; do
-    # shellcheck disable=SC1090
-    [ -r "$file" ] && source "$file"
-done
-unset file
+## Get the bash environments
+#for file in /etc/profile.d/*.sh; do
+#    # shellcheck disable=SC1090
+#    [ -r "$file" ] && source "$file"
+#done
+#unset file
 
 
 # Create log dirs
