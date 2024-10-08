@@ -80,12 +80,15 @@ When creating the image. See [.env](.env)
 ```ini
 # See environment variables documentation \
 # https://github.com/wal-g/wal-g/blob/master/docs/STORAGES.md
-WALE_S3_PREFIX = s3://bucket-name/path/to/folder
-AWS_ACCESS_KEY_ID = xxxx
-AWS_SECRET_ACCESS_KEY = secret
-AWS_ENDPOINT = s3-like-service:9000
-WALG_COMPRESSION_METHOD = brotli
+WALE_S3_PREFIX=s3://bucket-name/path/to/folder
+AWS_ACCESS_KEY_ID=xxxx
+AWS_SECRET_ACCESS_KEY=secret
+AWS_ENDPOINT=s3-like-service:9000
+WALG_COMPRESSION_METHOD=brotli
 ```
+
+All [libpq environments variable](https://www.postgresql.org/docs/current/libpq-envars.html) may be applied
+for client app.
 
 ## dbctl
 

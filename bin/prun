@@ -21,6 +21,14 @@ if [[ ! -f "$DBCTL_PATH" ]]; then
 fi
 chmod +x "$DBCTL_PATH"
 
+# Mount bashlib to edit the library
+BASHLIB_PATH="$PWD/resources/bash/bash-lib/lib"
+if [[ ! -d "$BASHLIB_PATH" ]]; then
+  echo::err "BASHLIB_PATH ($BASHLIB_PATH) is not a directory"
+  exit 1
+fi
+
+
 # Mount profile.d to edit the bash script
 PROFILE_D="$PWD/resources/bash/profile/profile.d"
 if [[ ! -d "$PROFILE_D" ]]; then
@@ -37,6 +45,7 @@ dkrun \
   --mount type=bind,source="${DBCTL_PATH}",target=/usr/local/bin/dbctl \
   -v "${MOUNT_POINT}":/data \
   -v "${PROFILE_D}":/etc/profile.d \
+  -v "${BASHLIB_PATH}":/usr/local/lib/bash-lib \
   supervisor-ctl \
   -c shared_buffers=256MB \
   -c max_connections=200
