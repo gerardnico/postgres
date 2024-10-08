@@ -223,7 +223,6 @@ ENV TZ='Etc/UTC'
 # Install env
 ADD resources/bash/profile/profile.d/* /etc/profile.d
 ADD resources/bash/profile/profile /etc/profile
-ENV BASH_ENV=/etc/profile
 
 # Install bash-lib into its own directory so that we can mount it
 RUN mkdir -p /usr/local/lib/bash-lib

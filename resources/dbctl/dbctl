@@ -20,13 +20,13 @@ trap finish EXIT
 # Execute a command
 eval_command(){
   local EVAL_COMMAND=$1
-  echo::info "Executing the command:\n$EVAL_COMMAND\n"
+  echo::info "Executing the command: $EVAL_COMMAND"
   eval "$EVAL_COMMAND"
 }
 
 cleaning_snapshot_dir(){
 
-  echo::info "Cleaning the SNAPSHOT_ID directory"
+  echo::info "Cleaning the snapshot directory"
   eval_command "rm -rf $DB_DUMP_SNAPSHOT_DIR"
   eval_command "mkdir -p $DB_DUMP_SNAPSHOT_DIR"
   echo::info "Directory cleaned"
@@ -133,7 +133,7 @@ function backupRestoreHelp() {
 
 }
 
-function backupCreateHelp() {
+function backup_create_help() {
 
   echo ""
   echo "Usage of the 'backup create' command"
@@ -350,17 +350,17 @@ function backup_restore_command(){
 }
 
 
-function backupCreateCommand(){
+function backup_create_command(){
 
   # Check if at least one argument is provided
   if [[ $# -eq 0 ]]; then
-      backupCreateHelp
+      backup_create_help
       echo::err "No arguments provided."
       return 1
   fi
 
   # Cleaning the SNAPSHOT_ID directory
-  clean_snaphost_dir
+  cleaning_snapshot_dir
 
   # Assign the first argument to a string
   local DUMP_FORMAT=${1:-$SQL_DUMP_FORMAT}
@@ -377,16 +377,16 @@ function backupCreateCommand(){
         EVAL_COMMAND="pg_dump --format=c ${CTL_DATABASE_NAME} > ${DUMP_FILE}"
         ;;
        *)
-         backupCreateHelp
+         backup_create_help
          echo::err "Dump format $DUMP_FORMAT unknown"
          return 1
   esac
 
-  echo::info "Dumping the database (${CTL_DATABASE_NAME}) into the SNAPSHOT_ID directory"
+  echo::info "Dumping the database (${CTL_DATABASE_NAME}) into the snapshot directory"
   eval_command "$EVAL_COMMAND"
   echo::info "Done"
 
-  echo::info "Creating a SNAPSHOT_ID"
+  echo::info "Creating a snapshot"
   eval_command "restic backup ${DB_DUMP_SNAPSHOT_DIR}"
   echo::info "Snapshot done"
 
@@ -489,7 +489,7 @@ function backupSqlCommand(){
 
     # Check if at least one argument is provided
     if [[ $# -eq 0 ]]; then
-        backupCreateHelp
+        backup_create_help
         echo::err "No arguments provided."
         return 1
     fi
@@ -527,7 +527,7 @@ function backupCommand(){
 
   case "$COMMAND" in
     create)
-      backupCreateCommand "${ARGS[@]}"
+      backup_create_command "${ARGS[@]}"
       ;;
     restore)
       backup_restore_command "${ARGS[@]}"
@@ -608,7 +608,7 @@ ARCHIVE_DUMP_FORMAT=archive
 # The SNAPSHOT_ID directory is the directory that restic snapshots.
 # ie before every dump creation/restoration,
 # the directory is cleaned to have only one dump at a time
-DB_DUMP_SNAPSHOT_DIR="$PG_DUMP_DATA/SNAPSHOT_ID"
+DB_DUMP_SNAPSHOT_DIR="$PG_DUMP_DATA/snapshot"
 mkdir -p "$DB_DUMP_SNAPSHOT_DIR"
 # All dump files start with this prefix path
 DB_DUMP_PATH_PREFIX="$DB_DUMP_SNAPSHOT_DIR/dumpfile-db"
