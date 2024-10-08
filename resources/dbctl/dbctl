@@ -90,16 +90,13 @@ validate_postgres_dump() {
     return 0
 }
 
-function backupCommandHelp() {
+function backup_command_help() {
 
   echo ""
   echo "Usage of the backup command against the database (${CTL_DATABASE_NAME})"
   echo ""
   echo "The backup command creates or restore a dump of the database ${CTL_DATABASE_NAME}"
   echo ""
-  echo "You can create 2 type of backup dump:"
-  echo "  * sql"
-  echo "  * archive"
   echo ""
   echo "   ${CLI_NAME} backup command [--option[=value] ...] arg1 arg2 ..."
   echo ""
@@ -110,6 +107,10 @@ function backupCommandHelp() {
   echo "     * prune   - forget old snapshots with prune policy and perform dump file integrity checks"
   echo "     * fetch   snapshotId path     - fetch/get a file/dump by path"
   echo "     * help"
+  echo ""
+  echo "You can create 2 type of backup dump:"
+  echo "  * sql"
+  echo "  * archive"
   echo ""
 
 }
@@ -511,7 +512,7 @@ function backupCommand(){
 
   # Check if at least one argument is provided
   if [[ $# -eq 0 ]]; then
-      backupCommandHelp
+      backup_command_help
       echo::err "No arguments provided."
       return 1
   fi

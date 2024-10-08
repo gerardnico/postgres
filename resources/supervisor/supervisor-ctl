@@ -4,27 +4,47 @@
 set -Eeuo pipefail
 
 # The path at this point is always
-# /usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games
-# even if you have change it in the Dockerfile
-# We add the library directory then
-#PATH=/usr/local/lib:$PATH
 source bashlib-echo.sh
+source bashlib-shell.sh
 
-SUPERVISOR_CONF_PATH=${SUPERVISOR_CONF_PATH:-/supervisord.conf}
 
-LOG_HOME=${LOG_HOME:-/var/log}
+#####################
+# User set up
+#####################
+USER_UID=$(id -u)
+# User is needed to change the permissions with supervisor on the socket
+export USER
+USER=$(whoami 2> /dev/null || echo 'noname')
+export USER_GROUPS
+USER_GROUPS=$(groups 2> /dev/null || echo 'nogroup')
+#echo::info "To add a new group to the logged in user, use the '--add-group' option of docker"
+if [ "$HOME" == '/' ] && [ "$USER_UID" != '0' ]; then
+  # to avoid error with the HOME directory
+  # such as `error: could not lock config file //.gitconfig: Permission denied`
+  # Issue: https://gitlab.com/gitlab-org/gitlab-runner/-/issues/37408
+  export HOME=/home/$USER
+  echo::info "HOME: $HOME"
+  if [ ! -d "$HOME" ]; then
+      echo::info "Creating HOME=$HOME"
+      mkdir -p "$HOME"
+  fi
+fi
+# User with a login or non-login shell will get the same env
+BASHRC_PATH=$HOME/.bashrc
+if [ -f $BASHRC_PATH ]; then
+  rm $BASHRC_PATH
+fi
+ln -s /etc/profile ~/.bashrc
 
-## Get the bash environments
-#for file in /etc/profile.d/*.sh; do
-#    # shellcheck disable=SC1090
-#    [ -r "$file" ] && source "$file"
-#done
-#unset file
-
+#########################
+# Bash Env
+#########################
+. /etc/profile
 
 # Create log dirs
 # The log directory are not created and just stop supervisor
 # https://github.com/Supervisor/supervisor/issues/120#issuecomment-209292870
+LOG_HOME=${LOG_HOME:-/var/log}
 export SQL_EXPORTER_LOG=${LOG_HOME}/sql-exporter/sql-exporter.log
 export POSTGRES_EXPORTER_LOG=${LOG_HOME}/postgres-exporter/postgres-exporter.log
 export POSTGRES_LOG=${LOG_HOME}/postgres/postgres.log
@@ -63,4 +83,5 @@ fi
 #
 # We run it with `exec` so that it respond to Ctrl+z (SIGINT)
 #
+SUPERVISOR_CONF_PATH=${SUPERVISOR_CONF_PATH:-/supervisord.conf}
 exec supervisord -c "$SUPERVISOR_CONF_PATH"
