@@ -57,7 +57,10 @@ get_dump_format_from_path(){
       echo $DUMP_CUSTOM_FORMAT
       return
       ;;
-    "$DUMP_PLAIN_FILE_EXTENSION"|"$DUMP_PLAIN_FILE_EXTENSION.gz")
+    "$DUMP_PLAIN_FILE_EXTENSION")
+      echo $DUMP_PLAIN_FORMAT
+      ;;
+    "$DUMP_PLAIN_FILE_EXTENSION.$DUMP_PLAIN_ZIP_EXTENSION")
       echo $DUMP_PLAIN_FORMAT
       ;;
     *)
@@ -70,10 +73,12 @@ get_dump_format_from_path(){
 # @description return the dump file path
 # @arg $1 - the dump format
 # @arg $2 - the database name
+# @arg $3 - a third archive extension such as zip, gz
 get_db_dump_path(){
   
   local DUMP_FORMAT=$1
   local DATABASE_NAME=$2
+  local ZIP_EXTENSION=${3:-}
 
   # All dump files start with this prefix path
   local FILE_EXTENSION;
@@ -82,6 +87,9 @@ get_db_dump_path(){
   case $DUMP_FORMAT in
     "$DUMP_PLAIN_FORMAT")
       FILE_EXTENSION=".$DUMP_PLAIN_FILE_EXTENSION"
+      if [ "$ZIP_EXTENSION" != "" ]; then
+        FILE_EXTENSION="$FILE_EXTENSION.$ZIP_EXTENSION"
+      fi
       DUMP_PATH_PREFIX=$DUMP_FILE_PREFIX
       ;;
     "$DUMP_CUSTOM_FORMAT")
@@ -155,7 +163,7 @@ validate_postgres_dump() {
           fi
         ;;
         "$DUMP_PLAIN_FILE_EXTENSION")
-          VALIDITY_COMMAND="grep -q 'PostgresSQL database dump complete' $DUMP_PATH"
+          VALIDITY_COMMAND="grep -q 'PostgreSQL database dump complete' $DUMP_PATH"
           echo::info "Checking the $DUMP_FILE_EXTENSION dump with the command: $VALIDITY_COMMAND"
           if ! eval "$VALIDITY_COMMAND"; then
               echo::err "pg_restore cannot read the file structure. The dump may be corrupted."
@@ -265,6 +273,7 @@ function help() {
   echo ""
   echo "where command is one of:"
   echo "     * backup                   - create, restore, list database dump"
+  echo "     * exec                     - execute a SQL against the database (${CTL_DATABASE_NAME})"
   echo "     * db-ls                    - list the db in the postgres instance (cluster)"
   echo "     * db-extension-ls          - list the extensions installed"
   echo "     * db-conf                  - print the postgres.conf file"
@@ -298,6 +307,7 @@ function supervisor_status(){
 
 # @description restore a dump (See help)
 function backup_restore_command(){
+
 
   echo::info "Backup restore initialized"
 
@@ -340,7 +350,7 @@ function backup_restore_command(){
     if [ -f  "$CUSTOM_DUMP_FILE_TO_RESTORE" ]; then
         DUMP_FILE_TO_RESTORE=$CUSTOM_DUMP_FILE_TO_RESTORE
     else
-      DUMP_PATH=$(get_db_dump_path "$DUMP_PLAIN_FORMAT" "$TARGET_DB_NAME")
+      DUMP_PATH=$(get_db_dump_path "$DUMP_PLAIN_FORMAT" "$TARGET_DB_NAME" "$DUMP_PLAIN_ZIP_EXTENSION")
       SQL_DUMP_FILE_TO_RESTORE="${RESTORE_DIR}/${DUMP_PATH}"
       if [ ! -f  "$SQL_DUMP_FILE_TO_RESTORE" ]; then
         echo::err "We could not find any dump file to restore in the snapshot ${SNAPSHOT_ID}"
@@ -375,7 +385,21 @@ function backup_restore_command(){
   # Format
   DUMP_FORMAT=$(get_dump_format_from_path "$DUMP_FILE_TO_RESTORE")
 
-  echo::info "Validating the dump file"
+  # Unzip if zipped
+  echo::info "Unzip the dump if zipped"
+  EXTENSION=$(path::get_extension "$DUMP_FILE_TO_RESTORE" "last")
+  if [ "$EXTENSION" == $DUMP_PLAIN_ZIP_EXTENSION ]; then
+    echo::info "The dump is zipped, unzipping"
+    DUMP_PATH=$(get_db_dump_path "$DUMP_FORMAT" "$TARGET_DB_NAME")
+    DUMP_NAME=$(basename "$DUMP_PATH")
+    DUMP_DIR=$(dirname "$DUMP_FILE_TO_RESTORE");
+    UNZIPPED_DUMP="$DUMP_DIR/$DUMP_NAME"
+    eval_command "gunzip < ${DUMP_FILE_TO_RESTORE} > $UNZIPPED_DUMP"
+    DUMP_FILE_TO_RESTORE=$UNZIPPED_DUMP
+    echo::info "Unzipping done to $DUMP_FILE_TO_RESTORE"
+  fi
+
+  echo::info "Validating the dump file to restore"
   validate_postgres_dump "${DUMP_FILE_TO_RESTORE}"
 
   echo::info "Restoring the database ${TARGET_DB_NAME} with the dump (${DUMP_FILE_TO_RESTORE})"
@@ -404,14 +428,15 @@ function backup_restore_command(){
   echo::info "Restoring the database with a $DUMP_FORMAT format"
   case "$DUMP_FORMAT" in
     "$DUMP_PLAIN_FORMAT")
-      eval_command "gunzip < ${DUMP_FILE_TO_RESTORE} | psql --set ON_ERROR_STOP=on --single-transaction ${TARGET_DB_NAME}";
+      eval_command "cat ${DUMP_FILE_TO_RESTORE} | psql --set ON_ERROR_STOP=on --single-transaction ${TARGET_DB_NAME}";
       ;;
     "$DUMP_CUSTOM_FORMAT")
     # Options:
-      # -d      : makes a direct connection with libpq (If the connection does not work, try with psql)
-      # --clean : execute `DROP TABLE xxxx`
-      #           because there is no database anymore
-      #           it would failed with `ERROR:  table "xxxx" does not exist`
+      # -d            : makes a direct connection with libpq (If the connection does not work, try with psql)
+      # --clean       : execute `DROP TABLE xxxx`
+      #                  because there is no database anymore
+      #                  it would failed with `ERROR:  table "xxxx" does not exist`
+      # --create [-C] : drop the database before restoring.
       eval_command "pg_restore -d ${TARGET_DB_NAME} ${DUMP_FILE_TO_RESTORE}"
       ;;
     *)
@@ -454,15 +479,19 @@ function backup_create_command(){
   
   # For the format documentation see: https://www.postgresql.org/docs/current/app-pgdump.html
   local DUMP_PATH;
-  DUMP_PATH=$(get_db_dump_path "$DUMP_FORMAT" "$TARGET_DB_NAME")
   case "$DUMP_FORMAT" in
       "$DUMP_PLAIN_FORMAT")
-        EVAL_COMMAND="pg_dump --format=p ${CTL_DATABASE_NAME} | gzip  > ${DUMP_PATH}"
+        DUMP_PATH=$(get_db_dump_path "$DUMP_FORMAT" "$TARGET_DB_NAME" "$DUMP_PLAIN_ZIP_EXTENSION")
+        # --clean will add drop statement for database objects prior to outputting the commands for creating them
+        # --create will add a create database statement
+        EVAL_COMMAND="pg_dump --clean --format=p ${CTL_DATABASE_NAME} | gzip  > ${DUMP_PATH}"
         ;;
       "$DUMP_CUSTOM_FORMAT")
+        DUMP_PATH=$(get_db_dump_path "$DUMP_FORMAT" "$TARGET_DB_NAME")
         EVAL_COMMAND="pg_dump --format=c ${CTL_DATABASE_NAME} --file=${DUMP_PATH}"
         ;;
       "$DUMP_FORMAT_DIR")
+        DUMP_PATH=$(get_db_dump_path "$DUMP_FORMAT" "$TARGET_DB_NAME")
         EVAL_COMMAND="pg_dump --format=d ${CTL_DATABASE_NAME} --file ${DUMP_PATH}"
         ;;
        *)
@@ -552,11 +581,8 @@ function backup_fetch_command(){
 
 }
 
-function walGRestore(){
+function walg_restore(){
 
-  overmind stop postgres
-  overmind restart postgres
-  overmind log postgres
   stop_word="recovered"
 
   # 2 options: strace of snoops a tty
@@ -586,28 +612,6 @@ function walGRestore(){
 
 }
 
-function backupSqlCommand(){
-
-    # Check if at least one argument is provided
-    if [[ $# -eq 0 ]]; then
-        backup_create_help
-        echo::err "No arguments provided."
-        return 1
-    fi
-
-    # Assign the first argument to a string
-    local DUMP_FORMAT="$1"
-    shift  # Remove the first argument from the argument list
-
-    # Assign the rest of the arguments to an array
-    local ARGS=()
-    ARGS=("$@")
-    case "$DUMP_FORMAT" in
-        sql)
-          backupSql
-        ;;
-   esac
-}
 
 function backup_command(){
 
@@ -649,7 +653,14 @@ function backup_command(){
   esac
 
 }
-function backupPruneCommand(){
+
+# @description execute a sql command
+# @arg $1 - the SQL
+function exec_command(){
+  psql -c "$1" -d "${CTL_DATABASE_NAME}"
+}
+
+function backup_prune_command(){
 
   echo::info "Rolling the dump files (forget and prune)"
   command="restic forget --prune ${DBCTL_FORGET_POLICY:---keep-hourly 5 --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 3}"
@@ -702,10 +713,12 @@ mkdir -p "$PG_DUMP_DATA"
 # * The extension is the file entry (to determine the format from a file)
 DUMP_PLAIN_FORMAT="plain"
 DUMP_PLAIN_FILE_EXTENSION="sql"
+DUMP_PLAIN_ZIP_EXTENSION="gz"
 DUMP_CUSTOM_FORMAT=custom
 DUMP_CUSTOM_FILE_EXTENSION="dump"
 # DUMP_FORMAT_TAR="tar"
 DUMP_FORMAT_DIR="dir"
+
 
 # The snapshot directory is the directory that restic snapshots.
 # ie before every dump creation/restoration,
@@ -757,6 +770,9 @@ backup)
   ;;
 restore)
   backup_restore_command "${ARGS[@]}"
+  ;;
+exec)
+  exec_command "${ARGS[@]}"
   ;;
 db-ls)
   psql -c "\l"
