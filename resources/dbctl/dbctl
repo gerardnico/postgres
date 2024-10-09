@@ -253,14 +253,20 @@ function backup_create_help() {
   echo ""
   echo "where:"
   echo "  * format      - the format of the dump:"
-  echo "                    * custom - Custom-format archive"
+  echo "                    * custom - Custom-format archive (Recommended)"
   echo "                               Allows manual selection and reordering of archived items during restore"
-  echo "                    * plain  - SQL file with statements"
+  echo "                    * plain  - SQL file with statements (Monolithic))"
   echo ""
   echo "  * --db dbName - the database name to backup (by default ${CTL_DATABASE_NAME})"
   echo ""
   echo "We don't support tar and directory format."
   echo ""
+  echo "Note: "
+  echo "  Test your dump periodically by restoring it against an empty database"
+  echo "  Dump may have bugs and restoring it may lead to ERROR such as constraint xxx for relation xxxx already exists"
+
+
+
 
 }
 
@@ -428,7 +434,11 @@ function backup_restore_command(){
   echo::info "Restoring the database with a $DUMP_FORMAT format"
   case "$DUMP_FORMAT" in
     "$DUMP_PLAIN_FORMAT")
-      eval_command "cat ${DUMP_FILE_TO_RESTORE} | psql --set ON_ERROR_STOP=on --single-transaction ${TARGET_DB_NAME}";
+      DUMP_RESTORE_LOG="${DUMP_FILE_TO_RESTORE}.log"
+      echo::info "The restoration log will be logged to the file $DUMP_RESTORE_LOG"
+      # --echo-all - echo the SQL statement
+      # example of error: ERROR:  constraint "realm_list_registration_registration_realm_id_registration_fkey" for relation "realm_list_registration" already exists
+      eval_command "psql --echo-all --set ON_ERROR_STOP=on --single-transaction ${TARGET_DB_NAME} -f ${DUMP_FILE_TO_RESTORE} > ${DUMP_RESTORE_LOG}";
       ;;
     "$DUMP_CUSTOM_FORMAT")
     # Options:
