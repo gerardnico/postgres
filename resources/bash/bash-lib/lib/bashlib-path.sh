@@ -8,16 +8,17 @@ source bashlib-echo.sh
 
 # @description returns the file extension (ie the string after the first dot)
 # @arg $1 the file path
-# @arg $2 define the point position to determine the extension:
-#          * first for the first point
-#          * last for the last point
+# @arg $2 define the parts of the extension returned:
+#          * all from the first point to the end of the string
+#          * first for the first part
+#          * last for the last part (default)
 # @stdout the file extension without the dot (ie sql.gz, sh, doc, txt, ...) or the empty string
 # @exitcode 0 If a file was provided
 # @exitcode 1 If a file was not provided
 path::get_extension(){
 
   local FILE_NAME="$1"
-  local POINT_POSITION=${2:-'first'}
+  local PART_TYPE=${2:-'last'}
 
   # Check if the file name is provided
   if [ -z "$FILE_NAME" ]; then
@@ -25,31 +26,34 @@ path::get_extension(){
       return 1
   fi
 
-  if [ "$POINT_POSITION" = "first" ]; then
-
-    # Extract everything after the first dot
-    local EXTENSION="${FILE_NAME#*.}"
-
-    # Check if there was a dot in the FILE_NAME
-    if [ "$EXTENSION" = "$FILE_NAME" ]; then
-        # No dot found, return empty string
-        echo ""
-        return
-    fi
-    echo "$EXTENSION"
-    return
-
-  fi
-
-  # Extract characters after the last '.'
-  local EXTENSION="${FILE_NAME##*.}"
-
-  # Check if there was a '.' in the string
-  if [[ "$EXTENSION" != "$FILE_NAME" ]]; then
-      echo "$EXTENSION"
+  # Extract everything after the first dot
+  local EXTENSION="${FILE_NAME#*.}"
+  # Check if there was a dot in the FILE_NAME
+  if [ "$EXTENSION" = "$FILE_NAME" ]; then
+      # No dot found, return empty string
+      echo ""
       return
   fi
-  echo ""
+
+  IFS='.' read -ra PARTS <<< "$EXTENSION"
+  case $PART_TYPE in
+    'all')
+      echo "$EXTENSION"
+      return
+    ;;
+    'first')
+      echo "${PARTS[0]}"
+      return
+    ;;
+    'last')
+      echo "${PARTS[@]: -1}"
+      ;;
+    *)
+      echo:err "The part type ($PART_TYPE) is unknown (all, first or last)"
+      return 1
+      ;;
+  esac
+
 
 }
 
@@ -68,4 +72,10 @@ path::is_absolute(){
     return 0;
   fi
   return 1;
+}
+
+# @description Return the file name (known as the base name)
+# @arg $1 the path
+path::get_file_name(){
+  basename "$1"
 }
