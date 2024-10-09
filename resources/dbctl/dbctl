@@ -18,11 +18,31 @@ function finish() {
 }
 trap finish EXIT
 
-# Execute a command
+# @description Execute a command, stdout goes to stderr
 eval_command(){
   local EVAL_COMMAND=$1
   echo::info "Executing the command: $EVAL_COMMAND"
-  eval "$EVAL_COMMAND"
+  eval "$EVAL_COMMAND" >&2
+}
+
+# @description fetch a snapshot
+# @arg $1 snapshot id
+# @stdout the restore directory
+fetch_snapshot(){
+
+    SNAPSHOT_ID=$1
+    RESTORE_DIR="$RESTORE_DIR_BASE/${SNAPSHOT_ID}"
+    echo::info "Creating the target restore directory ($RESTORE_DIR)"
+    eval_command "mkdir -p $RESTORE_DIR_BASE"
+    echo::info "Directory created"
+
+    INCLUDE_PATH_PATTERN=$DUMP_SNAPSHOT_DIR
+    echo::info "Fetching the backup dump from the snapshot (${SNAPSHOT_ID})"
+    eval_command "restic restore --include ${INCLUDE_PATH_PATTERN} --target $RESTORE_DIR --verify ${SNAPSHOT_ID}"
+    echo::info "Fetching done"
+
+    echo "$RESTORE_DIR"
+
 }
 
 # @description return the dump format from a path
@@ -169,19 +189,17 @@ function backup_command_help() {
   echo "   ${CLI_NAME} backup command [--option[=value] ...] arg1 arg2 ..."
   echo ""
   echo "where command is one of:"
-  echo "     * create  - perform a backup"
-  echo "     * restore - restore a backup"
-  echo "     * ls      - list the backup dump files"
+  echo "     * create  - perform a dump and a snapshot"
+  echo "     * fetch   - fetch a dump from a snapshot"
+  echo "     * ls      - list the dump in snapshots"
   echo "     * prune   - forget old snapshots with prune policy and perform dump file integrity checks"
-  echo "     * fetch   - fetch/get a file/dump by path"
+  echo "     * restore - restore a backup from a snapshot or local path"
   echo "     * help"
   echo ""
-  echo "You can create 2 type of backup dump:"
-  echo "  * sql"
-  echo "  * archive"
   echo ""
 
 }
+
 function backup_restore_help() {
 
   echo ""
@@ -223,12 +241,14 @@ function backup_create_help() {
   echo "    * a dump of a database (by default ${CTL_DATABASE_NAME})"
   echo "    * and a snapshot of the dump file"
   echo ""
-  echo "   ${CLI_NAME} backup create [--db dbName] type"
+  echo "   ${CLI_NAME} backup create [--db dbName] format"
   echo ""
   echo "where:"
-  echo "  * type        - the format of the dump:"
-  echo "                    * plain  - perform a sql backup dump (SQL file with statements)"
-  echo "                    * custom - perform an custom dump (Custom-format archive that allows manual selection and reordering of archived items during restore)"
+  echo "  * format      - the format of the dump:"
+  echo "                    * custom - Custom-format archive"
+  echo "                               Allows manual selection and reordering of archived items during restore"
+  echo "                    * plain  - SQL file with statements"
+  echo ""
   echo "  * --db dbName - the database name to backup (by default ${CTL_DATABASE_NAME})"
   echo ""
   echo "We don't support tar and directory format."
@@ -241,10 +261,10 @@ function help() {
   echo ""
   echo "Usage of the cli ${CLI_NAME} against the database (${CTL_DATABASE_NAME})"
   echo ""
-  echo "   ${CLI_NAME} command [--option[=value] ...] arg1 arg2 ..."
+  echo "   ${CLI_NAME} command [--option [value] ...] arg1 arg2 ..."
   echo ""
   echo "where command is one of:"
-  echo "     * backup                   - create or restore a database backup"
+  echo "     * backup                   - create, restore, list database dump"
   echo "     * db-ls                    - list the db in the postgres instance (cluster)"
   echo "     * db-extension-ls          - list the extensions installed"
   echo "     * db-conf                  - print the postgres.conf file"
@@ -258,44 +278,13 @@ function help() {
 
 }
 
-function psLs(){
-  command="overmind ps"
-  echo::info "\nExecuting the command:\n$command\n"
-  eval "$command"
-}
 
-function psLog(){
-  if [ -z "${ARGS[0]}" ]; then
-        echo::err 'The process name should be given as first argument'
-        echo::err 'use the ps-ls command to get the available process name'
-        exit 1
-    fi
-    process=${ARGS[0]}
-    command="overmind log ${process}"
-    echo::info "\nExecuting the command:\n$command\n"
-    eval "$command"
-    echo::info "$process log done"
-}
-
-function psRestart(){
-  if [ -z "${ARGS[0]}" ]; then
-      echo::err 'The process name should be given as first argument'
-      echo::err 'use the ps-ls command to get the available process name'
-      exit 1
-  fi
-  process=${ARGS[0]}
-  command="overmind restart ${process}"
-  sleep 5 && overmind restart sql_exporter; cat /proc/1/fd/1 /proc/1/fd/2
-  echo::info "\nExecuting the command:\n$command\n"
-  eval "$command"
-  echo::info "$process restarted"
-}
 
 
 ## psStatus
 #
 # print every second the status of all process in supervisor
-function psStatus(){
+function supervisor_status(){
   while sleep 1; do
     if OUTPUT=$(supervisorctl status all); then
       # catch error or not (if the status is not running)
@@ -307,11 +296,10 @@ function psStatus(){
   done
 }
 
-
+# @description restore a dump (See help)
 function backup_restore_command(){
 
   echo::info "Backup restore initialized"
-
 
   local SNAPSHOT_ID=""
   local DUMP_PATH=""
@@ -342,18 +330,9 @@ function backup_restore_command(){
 
   # Restoration from a snapshot
   if [ "${SNAPSHOT_ID}" != "" ]; then
-    RESTORE_DIR="$RESTORE_DIR_BASE/${SNAPSHOT_ID}"
-    echo::info "Creating the target restoration directory ($RESTORE_DIR)"
-    eval_command "mkdir -p $RESTORE_DIR_BASE"
-    echo::info "Directory created"
 
-    INCLUDE_PATH_PATTERN=$DUMP_SNAPSHOT_DIR
-    if [ "$DUMP_PATH" != "" ]; then
-      INCLUDE_PATH_PATTERN=$DUMP_PATH
-    fi
-    echo::info "Fetching the backup dump from the snapshot (${SNAPSHOT_ID}) into the database (${TARGET_DB_NAME})"
-    eval_command "restic restore --include ${INCLUDE_PATH_PATTERN} --target $RESTORE_DIR --verify ${SNAPSHOT_ID}"
-    echo::info "Fetching done"
+    # Fetch the backup
+    RESTORE_DIR=$(fetch_snapshot "$SNAPSHOT_ID")
 
     echo::info "Searching a valid dump file in the snapshot ${SNAPSHOT_ID}"
     DUMP_PATH=$(get_db_dump_path "$DUMP_CUSTOM_FORMAT" "$TARGET_DB_NAME")
@@ -428,9 +407,12 @@ function backup_restore_command(){
       eval_command "gunzip < ${DUMP_FILE_TO_RESTORE} | psql --set ON_ERROR_STOP=on --single-transaction ${TARGET_DB_NAME}";
       ;;
     "$DUMP_CUSTOM_FORMAT")
-      # the -d option makes a direct connection with libpq
-      # If the connection does not work, try with psql
-      eval_command "pg_restore --clean -d ${TARGET_DB_NAME} ${DUMP_FILE_TO_RESTORE}"
+    # Options:
+      # -d      : makes a direct connection with libpq (If the connection does not work, try with psql)
+      # --clean : execute `DROP TABLE xxxx`
+      #           because there is no database anymore
+      #           it would failed with `ERROR:  table "xxxx" does not exist`
+      eval_command "pg_restore -d ${TARGET_DB_NAME} ${DUMP_FILE_TO_RESTORE}"
       ;;
     *)
       echo::err "The format $DUMP_FORMAT is not yet implemented"
@@ -444,7 +426,7 @@ function backup_restore_command(){
 
 function backup_create_command(){
 
-  local DUMP_FORMAT=$DUMP_CUSTOM_FORMAT
+  local DUMP_FORMAT=""
   local TARGET_DB_NAME=$CTL_DATABASE_NAME
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -453,12 +435,22 @@ function backup_create_command(){
         TARGET_DB_NAME=$1
         shift
         ;;
+      "--help"|"-h")
+        backup_create_help
+        return
+        ;;
       *)
         DUMP_FORMAT=$1
+        shift
         ;;
     esac
   done
-  
+
+  if [ $DUMP_CUSTOM_FORMAT == "" ]; then
+    backup_create_help
+    echo::err "A dump format is mandatory."
+    echo::err "If you don't know, the best is to choose: $DUMP_CUSTOM_FORMAT"
+  fi
   
   # For the format documentation see: https://www.postgresql.org/docs/current/app-pgdump.html
   local DUMP_PATH;
@@ -513,30 +505,50 @@ function backup_ls_command(){
 
 }
 
-function dumpFetch(){
+function backup_fetch_command_help() {
 
-  if [ -z "${ARGS[0]}" ]; then
+  echo ""
+  echo "Usage of the 'backup fetch' command"
+  echo ""
+  echo "The 'backup fetch' command fetch a backup snapshot into your local file system."
+  echo ""
+  echo "   ${CLI_NAME} backup fetch [-h|--help] snapshotId"
+  echo ""
+  echo "where"
+  echo "     * snapshotId  - the snapshotId or latest for the latest snapshot"
+  echo "     * -h|help     - print the help"
+  echo ""
+  echo ""
+
+}
+
+function backup_fetch_command(){
+
+  local SNAPSHOT_ID=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      "-h"|"--help"|"help")
+        backup_fetch_command_help
+        return
+        ;;
+      *)
+        SNAPSHOT_ID=${1}
+        shift
+        ;;
+    esac
+  done
+
+  if [ "$SNAPSHOT_ID" == "" ]; then
+      backup_fetch_command_help
       echo::err 'The Snapshot Id should be given as first argument'
-      echo::err 'use the dump-ls command to get the available SNAPSHOT_ID ids'
-      # shellcheck disable=SC2016
-      echo::err 'or use `latest` if you want to use the latest SNAPSHOT_ID'
-      exit 1
+      echo::err "  * use the 'backup ls' command to get the available snapshot id"
+      echo::err "  * or use 'latest' for the latest snapshot"
+      return 1
   fi
-  SNAPSHOT_ID=${ARGS[0]}
-  if [ -z "${ARGS[1]}" ]; then
-      echo::err 'A path should be given as second argument'
-      exit 1
-  fi
-  path=${ARGS[1]}
-  echo::info "Fetching the path (${path}) from the SNAPSHOT_ID id ${SNAPSHOT_ID}"
 
-  command="restic restore --include ${path} --target $RESTORE_DIR_BASE --verify ${SNAPSHOT_ID}"
-  echo::info "\nExecuting the command:\n$command\n"
-  eval "$command"
-
-  targetDumpFileInRestore="${RESTORE_DIR_BASE}${path}"
-  echo::info "Fetch done"
-  echo::info "The restored file is available at ${targetDumpFileInRestore}"
+  RESTORE_DIR=$(fetch_snapshot "$SNAPSHOT_ID")
+  echo::info "The restored snapshot files are available at ${RESTORE_DIR}"
+  eval_command "find $RESTORE_DIR"
 
 }
 
@@ -597,7 +609,7 @@ function backupSqlCommand(){
    esac
 }
 
-function backupCommand(){
+function backup_command(){
 
   # Check if at least one argument is provided
   if [[ $# -eq 0 ]]; then
@@ -621,11 +633,8 @@ function backupCommand(){
     restore)
       backup_restore_command "${ARGS[@]}"
       ;;
-    db-backp-dir-dump)
-      dbDirDump
-      ;;
     fetch)
-      dumpFetch
+      backup_fetch_command "${ARGS[@]}"
       ;;
     ls)
       backup_ls_command "${ARGS[@]}"
@@ -744,7 +753,7 @@ echo "-------------------------------------------"
 echo ""
 case ${COMMAND} in
 backup)
-  backupCommand "${ARGS[@]}"
+  backup_command "${ARGS[@]}"
   ;;
 restore)
   backup_restore_command "${ARGS[@]}"
@@ -767,7 +776,7 @@ ps-restart)
   psRestart
   ;;
 ps-status)
-  psStatus
+  supervisor_status
   ;;
 ps-start)
   psStart
