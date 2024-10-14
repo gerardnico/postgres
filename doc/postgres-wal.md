@@ -1,6 +1,16 @@
 # Write Ahead Log Archiving (Point in Time recovery)
 
 ## About
+WAL is the mechanism that PostgreSQL uses to ensure that no committed changes are lost. 
+
+* Transactions are written sequentially to the WAL 
+* A transaction is considered to be committed when those writes are flushed to disk. 
+* Afterward, a background process writes the changes into the main database cluster files (also known as the heap). 
+* In the event of a crash, the WAL is replayed to make the database consistent.
+
+WAL is conceptually infinite but in practice is broken up 
+into individual 16MB files called segments. 
+
 
 called also:
 
@@ -54,7 +64,17 @@ They follow the naming convention `0000000100000A1E000000FE` where:
 
 ### Log Sequence Number (LSN)
 
-Log Sequence Number (LSN) is a byte offset into the WAL, increasing monotonically with each new record.
+Log Or Logical Sequence Number (LSN) is a byte offset into the WAL, increasing monotonically with each new record.
+
+It's part of a [wal segment name](#wal-segment-name)
+
+### Wal Segment Name
+
+WAL segments follow the naming convention `0000000100000A1E000000FE`
+where:
+* the first 8 hexadecimal digits represent the timeline 
+* the next 16 digits are the [logical sequence number (LSN)](#log-sequence-number-lsn)
+
 
 ### wal segment size
 
@@ -255,7 +275,7 @@ configurations to be diagnosed easily if they fail.
 ## Tool
 
 * [wal-g](postgres-wal-g.md)
-* https://pgbackrest.org/user-guide.html
+* [PgBackrest](postgres-backup.md#pgbackrest)
 * https://github.com/EnterpriseDB/barman (Backup and Recovery Manager)
 
 ### Fly use Barman

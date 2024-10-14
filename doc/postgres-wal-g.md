@@ -1,5 +1,35 @@
 # Wal-g
 
+## About
+`wal-g` as a tool for making encrypted, compressed PostgreSQL backups (full and incremental)
+and push/fetch them to/from remote storages without saving it on your filesystem.
+
+You can use wal-g as a tool for making encrypted, compressed PostgreSQL backups (full and incremental)
+and push/fetch them to/from remote storages without saving it on your filesystem.
+
+Physical backups for all projects running on Fly using WAL-G.
+https://github.com/wal-g/wal-g
+
+Database changes are continuously streamed to S3.
+When there is a host or volume corruption, we restore the project to a new Fly host using the latest data in S3.
+https://supabase.com/blog/postgres-on-fly-by-supabase
+https://news.ycombinator.com/item?id=38915421
+
+https://github.com/wal-g/wal-g/blob/master/docs/PostgreSQL.md
+https://github.com/sorintlab/stolon/blob/master/doc/pitr_wal-g.md
+https://github.com/avestura/walg-docker/blob/master/Dockerfile
+
+Docker:
+https://github.com/fly-apps/postgres-flex (HA setup using repmgr - primary and a standby server)
+https://github.com/fly-apps/postgres-ha (HA setup using solon - old as stated [here](https://fly.io/docs/postgres/advanced-guides/high-availability-and-global-replication/))
+
+https://github.com/MikeTangoEcho/postgres-walg
+https://github.com/stephane-klein/playground-postgresql-walg/
+
+```bash
+docker run --env-file [your env file] postgres-walg sh /root/dump.sh
+```
+
 ## Backup Scenario
 
 [](https://github.com/stephane-klein/playground-postgresql-walg/blob/master/README.md)

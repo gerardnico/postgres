@@ -184,9 +184,9 @@ validate_postgres_dump() {
           # Without any table, the grep fail
           if ! TABLE_COUNT=$(eval "$TABLE_COUNT_COMMAND"); then
             # the grep may fail if no tables
-            echo::warn "Info: Dump contains no tables."
+            echo::warn "Dump contains no tables."
           else
-            echo::info "Info: Dump contains approximately $TABLE_COUNT tables."
+            echo::info "Dump contains $TABLE_COUNT tables."
           fi
         ;;
         "$DUMP_PLAIN_FILE_EXTENSION")
@@ -201,9 +201,9 @@ validate_postgres_dump() {
           echo::info "Getting the table count with the command: $TABLE_COUNT_COMMAND"
           if ! TABLE_COUNT=$(eval "$TABLE_COUNT_COMMAND"); then
             # the grep may fail if no tables
-            echo::warn "Info: Dump contains no tables."
+            echo::warn "Dump contains no tables."
           else
-            echo::info "Info: Dump contains approximately $TABLE_COUNT tables."
+            echo::info "Dump contains $TABLE_COUNT tables."
           fi
         ;;
         *)
@@ -462,22 +462,24 @@ function backup_restore_command(){
   echo::info "Database created"
 
   echo::info "Restoring the database with a $DUMP_FORMAT format"
+  DUMP_RESTORE_LOG="${DUMP_FILE_TO_RESTORE}.log"
+  echo::info "The restoration log will be logged to the file $DUMP_RESTORE_LOG"
   case "$DUMP_FORMAT" in
     "$DUMP_PLAIN_FORMAT")
-      DUMP_RESTORE_LOG="${DUMP_FILE_TO_RESTORE}.log"
-      echo::info "The restoration log will be logged to the file $DUMP_RESTORE_LOG"
       # --echo-all - echo the SQL statement
       # example of error: ERROR:  constraint "realm_list_registration_registration_realm_id_registration_fkey" for relation "realm_list_registration" already exists
       eval_command "psql --echo-all --set ON_ERROR_STOP=on --single-transaction ${TARGET_DB_NAME} -f ${DUMP_FILE_TO_RESTORE} > ${DUMP_RESTORE_LOG}";
       ;;
     "$DUMP_CUSTOM_FORMAT")
     # Options:
-      # -d            : makes a direct connection with libpq (If the connection does not work, try with psql)
-      # --clean       : execute `DROP TABLE xxxx`
-      #                  because there is no database anymore
-      #                  it would failed with `ERROR:  table "xxxx" does not exist`
-      # --create [-C] : drop the database before restoring.
-      eval_command "pg_restore -d ${TARGET_DB_NAME} ${DUMP_FILE_TO_RESTORE}"
+      # -d              : makes a direct connection with libpq (If the connection does not work, try with psql)
+      # --clean         : execute `DROP TABLE xxxx` (used for overwriting an existing database)
+      #                   because we drop the database before restoration there is no database anymore and
+      #                   failed with `ERROR:  table "xxxx" does not exist`
+      # --create [-C]   : drop the database before restoring.
+      # --exit-on-error : default is to continue and to display a count of errors at the end of the restoration
+      # --file          : Specify output file for generated script, or for the listing when used with -l. Use '-' for stdout.
+      eval_command "pg_restore --exit-on-error -d ${TARGET_DB_NAME} --file ${DUMP_RESTORE_LOG} ${DUMP_FILE_TO_RESTORE}"
       ;;
     *)
       echo::err "The format $DUMP_FORMAT is not yet implemented"
