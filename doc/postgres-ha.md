@@ -26,11 +26,24 @@ If the primary server goes down, `repmgrd` will automatically elect a new primar
 
 https://medium.com/@joao_o/postgresql-high-availability-and-automatic-failover-using-repmgr-5f505dc6913a
 
-### Postgres Operator (Crunchy Data, Go)
+### Postgres Kubernetes Operator
+#### CloudNative
+
+https://cloudnative-pg.io/
+https://cloudnative-pg.io/documentation
+https://github.com/cloudnative-pg/cloudnative-pg/blob/main/docs/src/quickstart.md
+
+It defines a new Kubernetes resource called Cluster representing
+a PostgreSQL cluster made up of a single primary
+and an optional number of replicas that co-exist
+in a chosen Kubernetes namespace for High Availability and offloading of read-only queries.
+
+#### Crunchy Data
 
 https://github.com/CrunchyData/postgres-operator
 
-### HA Postgres Operator Zalando (Patroni, Spilo)
+
+#### Zalando (Patroni, Spilo)
 
 https://github.com/zalando/postgres-operator/
 It makes easy and convenient to run Patroni based clusters on K8s.
