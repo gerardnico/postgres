@@ -17,7 +17,9 @@ fly-prefer-region
 For write:
 https://fly.io/docs/networking/dynamic-request-routing/#the-fly-prefer-region-request-header
 
-### HA repmgrd
+### repmgrd (Replication Manager)
+
+https://www.repmgr.org/ (developed by Edb same as [](#cloudnative))
 
 `repmgrd` monitors the cluster and facilitate automatic failover.
 It constantly checks the health of the primary server
@@ -25,6 +27,7 @@ and the standby servers to ensure they are up and running.
 If the primary server goes down, `repmgrd` will automatically elect a new primary server from the available standby servers.
 
 https://medium.com/@joao_o/postgresql-high-availability-and-automatic-failover-using-repmgr-5f505dc6913a
+https://github.com/EnterpriseDB/repmgr/tree/master
 
 ### Postgres Kubernetes Operator
 #### CloudNative
