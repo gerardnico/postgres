@@ -8,13 +8,15 @@
 ## Scripts need to have execution
 source bashlib-echo.sh
 
+PROJECT_DIR=$(realpath "$(dirname "$0")/../")
+
 # Create the mount point to give it the right permissions
-MOUNT_POINT="$PWD/mount"
+MOUNT_POINT="$PROJECT_DIR/mount"
 mkdir -p "$MOUNT_POINT"
 chmod 0777 "$MOUNT_POINT"
 
 # Mount dbctl to edit it
-DBCTL_PATH="$PWD/resources/dbctl/dbctl"
+DBCTL_PATH="$PROJECT_DIR/bin/dbctl"
 if [[ ! -f "$DBCTL_PATH" ]]; then
   echo::err "dbctl not found at $DBCTL_PATH"
   exit 1
@@ -22,7 +24,7 @@ fi
 chmod +x "$DBCTL_PATH"
 
 # Mount bashlib to edit the library
-BASHLIB_PATH="$PWD/resources/bash/bash-lib/lib"
+BASHLIB_PATH="$PROJECT_DIR/vendors/bash-lib/lib"
 if [[ ! -d "$BASHLIB_PATH" ]]; then
   echo::err "BASHLIB_PATH ($BASHLIB_PATH) is not a directory"
   exit 1
@@ -30,7 +32,7 @@ fi
 
 
 # Mount profile.d to edit the bash script
-PROFILE_D="$PWD/resources/bash/profile/profile.d"
+PROFILE_D="$PROJECT_DIR/resources/bash/profile/profile.d"
 if [[ ! -d "$PROFILE_D" ]]; then
   echo::err "bash profile dir not found at $PROFILE_D"
   exit 1
@@ -41,11 +43,14 @@ fi
 # ERROR:  could not resize shared memory segment . . . : No space left on device.
 # You will want to pass --shm-size=256MB
 
+# Note: The entrypoint script is made so that any options passed to the docker command will be passed along to the postgres server daemon
+# ie -c shared_buffers=256MB -c max_connections=200 are conf
+# Ref: Database Conf at https://hub.docker.com/_/postgres/
 dock-x run \
   --mount type=bind,source="${DBCTL_PATH}",target=/usr/local/bin/dbctl \
   -v "${MOUNT_POINT}":/data \
   -v "${PROFILE_D}":/etc/profile.d \
   -v "${BASHLIB_PATH}":/usr/local/lib/bash-lib \
-  supervisor-ctl \
+  postgres \
   -c shared_buffers=256MB \
   -c max_connections=200

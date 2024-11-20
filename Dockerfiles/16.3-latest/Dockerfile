@@ -178,6 +178,7 @@ ADD ../../resources/bash/profile/profile /etc/profile
 
 
 # Install bash-lib into its own directory
+# so that we can mount them and edit them
 RUN mkdir -p /usr/local/lib/bash-lib
 ADD vendors/bash-lib/lib/* /usr/local/lib/bash-lib
 # Lib is not in the path by default
