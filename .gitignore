@@ -16,3 +16,4 @@ temp
 *.pem
 # The mount for postgres
 mount
+vendors

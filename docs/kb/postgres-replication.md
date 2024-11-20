@@ -2,7 +2,7 @@
 
 
 
-Logical replication uses [WAL entry](postgres-wal)
+Logical replication uses [WAL entry](postgres-wal.md)
 
 Since version 10, logical replication matches a normal entry with a database name 
 or keywords such as all.

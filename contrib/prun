@@ -41,7 +41,7 @@ fi
 # ERROR:  could not resize shared memory segment . . . : No space left on device.
 # You will want to pass --shm-size=256MB
 
-dkrun \
+dock-x run \
   --mount type=bind,source="${DBCTL_PATH}",target=/usr/local/bin/dbctl \
   -v "${MOUNT_POINT}":/data \
   -v "${PROFILE_D}":/etc/profile.d \

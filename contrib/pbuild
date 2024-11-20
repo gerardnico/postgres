@@ -1,0 +1,27 @@
+#!/bin/bash
+# This script should be run from the mono project directory
+
+source bashlib-echo.sh
+source bashlib-error.sh
+error::set_strict_mode
+error::set_trap
+
+PROJECT_DIR=$(realpath "$(dirname "$0")/../")
+SOURCE_BASH_LIB_DIR=$(realpath "$PROJECT_DIR/../bash-lib")
+
+if [ ! -d "$SOURCE_BASH_LIB_DIR" ]; then
+  echo::err "The bashlib dir ($SOURCE_BASH_LIB_DIR) does not exist"
+  echo::err "Clone or copy bash lib in this directory"
+  exit 1
+fi
+
+echo::info "Copy the bash lib to build to make it available to the Docker context"
+TARGET_BASH_LIB_DIR="$(dirname "$0")/../build/bash-lib"
+cp "$SOURCE_BASH_LIB_DIR"/lib/* "$TARGET_BASH_LIB_DIR"
+
+
+echo::info "Building"
+#dock-x build "${@}"
+pushd "$PROJECT_DIR"
+dock-x build -f "Dockerfiles/$DOCK_X_TAG/Dockerfile" .
+popd

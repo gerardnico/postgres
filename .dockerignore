@@ -1,0 +1,5 @@
+# https://docs.docker.com/build/concepts/context/#dockerignore-files
+!vendors
+contrib
+docs
+mount

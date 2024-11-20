@@ -222,7 +222,7 @@ ENV TZ='Etc/UTC'
 
 # Install env
 ADD resources/bash/profile/profile.d/* /etc/profile.d
-ADD resources/bash/profile/profile /etc/profile
+ADD ../../resources/bash/profile/profile /etc/profile
 
 # Install bash-lib into its own directory so that we can mount it
 RUN mkdir -p /usr/local/lib/bash-lib
@@ -240,7 +240,7 @@ ENV PATH="/usr/local/bin/bash-lib:${PATH}"
 ####################################
 # The postgres_exporter port
 EXPOSE 9187
-ADD --chmod=0775 --chown=root:postgres resources/postgres_exporter/postgres-exporter-ctl /usr/local/bin
+ADD --chmod=0775 --chown=root:postgres ../../resources/postgres_exporter/postgres-exporter-ctl /usr/local/bin
 
 ####################################
 # Sql exporter
@@ -250,7 +250,7 @@ ADD --chmod=0775 --chown=root:postgres resources/postgres_exporter/postgres-expo
 RUN mkdir -p /var/log/sql-exporter/
 
 EXPOSE 9399
-ADD --chmod=0775 --chown=root:postgres resources/sql_exporter/sql-exporter-ctl /usr/local/bin
+ADD --chmod=0775 --chown=root:postgres ../../resources/sql_exporter/sql-exporter-ctl /usr/local/bin
 
 # The conf (conf is copied in the data directory at start)
 # the end / in the target is important to tell that this is a directory
@@ -269,7 +269,7 @@ RUN mkdir -p /etc/bash_completion.d && \
 ENV DBCTL_HOME=${DATA_HOME}/dbctl
 ENV DBCTL_LOG_HOME=${LOG_HOME}/dbctl
 ENV DBCTL_LOG_FILE=${DBCTL_LOG_HOME}/dbctl.log
-ADD --chmod=0775 --chown=root:postgres resources/dbctl/dbctl /usr/local/bin/
+ADD --chmod=0775 --chown=root:postgres ../../bin/dbctl /usr/local/bin/
 RUN echo "Create dbctl log Home" && \
     mkdir -p "$DBCTL_LOG_HOME" && \
     touch "$DBCTL_LOG_FILE" && \
@@ -285,7 +285,7 @@ ENV PG_DUMP_DATA=${DATA_HOME}/pgdump
 ## Postgres
 #############################
 ## wrapper around docker-entrypoint.sh
-ADD --chmod=0775 --chown=root:postgres resources/postgres/postgres-ctl /usr/local/bin/
+ADD --chmod=0775 --chown=root:postgres ../../resources/postgres/postgres-ctl /usr/local/bin/
 
 # Other env are set in postgres-client.sh
 # All date are UTC (Os, Database, ...)
@@ -299,9 +299,9 @@ ENV PGTZ='Etc/UTC'
 # Don't add secret in their
 # The conf directory default to `pgdata`
 ENV POSTGRES_CONF_DIR=/etc/postgresql/
-ADD resources/postgres/conf/postgresql.conf ${POSTGRES_CONF_DIR}/postgresql.conf.template
+ADD ../../resources/postgres/conf/postgresql.conf ${POSTGRES_CONF_DIR}/postgresql.conf.template
 RUN envsubst < ${POSTGRES_CONF_DIR}/postgresql.conf.template > ${POSTGRES_CONF_DIR}/postgresql.conf
-ADD resources/postgres/conf/pg_hba.conf ${POSTGRES_CONF_DIR}/pg_hba.conf.template
+ADD ../../resources/postgres/conf/pg_hba.conf ${POSTGRES_CONF_DIR}/pg_hba.conf.template
 RUN envsubst < ${POSTGRES_CONF_DIR}/pg_hba.conf.template > ${POSTGRES_CONF_DIR}/pg_hba.conf
 
 # PgData is not set in /var/lib/postgresql/data
@@ -350,8 +350,8 @@ RUN chmod 0777 /home && \
 ####################################
 # Supervisor
 ####################################
-ADD resources/supervisor/supervisord.conf .
-ADD --chmod=0775 --chown=root:postgres resources/supervisor/supervisor-ctl /usr/local/bin/
+ADD ../../resources/supervisor/supervisord.conf .
+ADD --chmod=0775 --chown=root:postgres ../../resources/supervisor/supervisor-ctl /usr/local/bin/
 # We don't expose the supervisor webserver for now
 # EXPOSE 9001
 

@@ -32,7 +32,7 @@ docker logs postgres
 
 ### How to restore a database from a snapshot dump  
 
-A dump restore is performed via the [dbctl command](resources/dbctl/dbctl)
+A dump restore is performed via the [dbctl command](bin/dbctl)
 
 ```bash
 # Start bash in the container before using dbctl
@@ -57,7 +57,7 @@ dbctl backup restore /tmp/dumpfile-db-combo.sql.gz
 
 ### How to perform a dump backup
 
-A dump backup is performed via the [ctl command](resources/dbctl/dbctl)
+A dump backup is performed via the [ctl command](bin/dbctl)
 
 ```bash
 dbctl dump-backup
@@ -69,13 +69,13 @@ dbctl dump-prune
 
 The backup location is set via:
 
-```
+```bash
 WALG_S3_PREFIX=s3://bucket-name/path
 WALG_S3_PREFIX=s3://postgres-dev/dev-name
 ```
 
 In the container:
-```
+```bash
 wal-g backup-push $PGDATA
 ```
 
@@ -212,6 +212,7 @@ Be sure to path the good password in the environment variable ie `RESTIC_PASSWOR
 postgres          | Restic Repo not found - Restic init at s3:host/bucket-name
 postgres          | Fatal: create key in repository at s3:host/bucket-name failed: repository master key and config already initialized
 ```
+
 ## Postgres Exporter
 
 The Postgres exporter is `optional` and will not kill the container if shutdown.
@@ -242,7 +243,7 @@ Change the config files at: `/data/sql_exporter`
 
 ## How to Develop (dscript)
 
-See [dev doc](doc/dev.md)
+See [dev doc](docs/kb/dev.md)
 
 ## Kubernetes
 
