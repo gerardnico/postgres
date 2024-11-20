@@ -16,8 +16,8 @@ if [ ! -d "$SOURCE_BASH_LIB_DIR" ]; then
 fi
 
 echo::info "Copy the bash lib to build to make it available to the Docker context"
-TARGET_BASH_LIB_DIR="$(dirname "$0")/../vendors/bash-lib"
-mkdir -p $TARGET_BASH_LIB_DIRp
+TARGET_BASH_LIB_DIR="$(dirname "$0")/../vendors/bash-lib/lib"
+mkdir -p $TARGET_BASH_LIB_DIR
 cp "$SOURCE_BASH_LIB_DIR"/lib/* "$TARGET_BASH_LIB_DIR"
 
 
