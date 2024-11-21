@@ -1,29 +1,22 @@
 #!/bin/bash
 
 
-# Strict flag
-# e - Exit if any error
-# u - Treat unset variables as an error when substituting
-# o pipefail - the return value of a pipeline is the psStatus of the last command to exit with a non-zero psStatus or zero if no command exited with a non-zero psStatus
-# E - the ERR trap is inherited by shell functions
-set -Eeuo pipefail
+
 
 source bashlib-echo.sh
+source bashlib-doc.sh
 source bashlib-error.sh
 source bashlib-path.sh
+source bashlib-command.sh
+error::set_strict_mode
 error::set_trap
 
 function finish() {
-  printf "\n%s has finished\n" "${CLI_NAME}"
+  printf "\n%s has finished\n" "$(basename "$0")" >/dev/stderr
 }
 trap finish EXIT
 
-# @description Execute a command, stdout goes to stderr
-eval_command(){
-  local EVAL_COMMAND=$1
-  echo::info "Executing the command: $EVAL_COMMAND"
-  eval "$EVAL_COMMAND" >&2
-}
+
 
 # @description fetch a snapshot
 # @arg $1 snapshot id
@@ -31,20 +24,20 @@ eval_command(){
 fetch_snapshot(){
 
     SNAPSHOT_ID=$1
-    RESTORE_DIR="$RESTORE_DIR_BASE/${SNAPSHOT_ID}"
+    RESTORE_DIR="$PG_X_RESTORE_DIR_BASE/${SNAPSHOT_ID}"
     if [ "${SNAPSHOT_ID}" = "latest" ]; then
       # We need to clean otherwise we merge file system snapshot data
       # and we may restore a bad dump file (a custom dump is taken before a plain dump for instance)
       echo::info "Cleaning the latest fetch/restore directory"
-      eval_command "rm -rf $RESTORE_DIR"
+      command::echo_eval "rm -rf $RESTORE_DIR"
     fi
     echo::info "Creating the fetch/restore directory ($RESTORE_DIR)"
-    eval_command "mkdir -p $RESTORE_DIR_BASE"
+    command::echo_eval "mkdir -p $PG_X_RESTORE_DIR_BASE"
     echo::info "Directory created"
 
-    INCLUDE_PATH_PATTERN=$DUMP_SNAPSHOT_DIR
+    INCLUDE_PATH_PATTERN=$PG_X_DUMP_SNAPSHOT_DIR
     echo::info "Fetching the backup dump from the snapshot (${SNAPSHOT_ID})"
-    eval_command "restic restore --include ${INCLUDE_PATH_PATTERN} --target $RESTORE_DIR --verify ${SNAPSHOT_ID}"
+    command::echo_eval "restic restore --include ${INCLUDE_PATH_PATTERN} --target $RESTORE_DIR --verify ${SNAPSHOT_ID}"
     echo::info "Fetching done"
 
     echo "$RESTORE_DIR"
@@ -70,7 +63,7 @@ drop_db_if_exists(){
       echo::info "Exiting..."
       return 1
   fi
-  eval_command "dropdb ${TARGET_DB_NAME} --force -i"
+  command::echo_eval "dropdb ${TARGET_DB_NAME} --force -i"
   echo::info "Dropping Done"
 
 }
@@ -133,7 +126,7 @@ get_db_dump_path(){
       return 1
   esac
 
-  echo "$DUMP_SNAPSHOT_DIR/$DUMP_PATH_PREFIX-db-${DATABASE_NAME}$FILE_EXTENSION"
+  echo "$PG_X_DUMP_SNAPSHOT_DIR/$DUMP_PATH_PREFIX-db-${DATABASE_NAME}$FILE_EXTENSION"
 
   
 }
@@ -141,8 +134,8 @@ get_db_dump_path(){
 cleaning_snapshot_dir(){
 
   echo::info "Cleaning the snapshot directory"
-  eval_command "rm -rf $DUMP_SNAPSHOT_DIR"
-  eval_command "mkdir -p $DUMP_SNAPSHOT_DIR"
+  command::echo_eval "rm -rf $PG_X_DUMP_SNAPSHOT_DIR"
+  command::echo_eval "mkdir -p $PG_X_DUMP_SNAPSHOT_DIR"
   echo::info "Directory cleaned"
 
 }
@@ -315,9 +308,9 @@ function db_command_help(){
 }
 
 function help() {
-
+  CLI_NAME=$(basename "$0")
   echo ""
-  echo "Usage of the cli ${CLI_NAME} against the database (${CTL_DATABASE_NAME})"
+  echo "Usage of the cli $CLI_NAME  against the database (${CTL_DATABASE_NAME})"
   echo ""
   echo "   ${CLI_NAME} command [--option [value] ...] arg1 arg2 ..."
   echo ""
@@ -442,7 +435,7 @@ function backup_restore_command(){
     DUMP_NAME=$(basename "$DUMP_PATH")
     DUMP_DIR=$(dirname "$DUMP_FILE_TO_RESTORE");
     UNZIPPED_DUMP="$DUMP_DIR/$DUMP_NAME"
-    eval_command "gunzip < ${DUMP_FILE_TO_RESTORE} > $UNZIPPED_DUMP"
+    command::echo_eval "gunzip < ${DUMP_FILE_TO_RESTORE} > $UNZIPPED_DUMP"
     DUMP_FILE_TO_RESTORE=$UNZIPPED_DUMP
     echo::info "Unzipping done to $DUMP_FILE_TO_RESTORE"
   fi
@@ -458,7 +451,7 @@ function backup_restore_command(){
   # the --create option of a custom dump is just fucked up
   echo::info "Creating an empty database ${TARGET_DB_NAME}"
   # load the output of pg_restore into a truly empty database (ie template0)
-  eval_command "createdb -T template0 ${TARGET_DB_NAME}"
+  command::echo_eval "createdb -T template0 ${TARGET_DB_NAME}"
   echo::info "Database created"
 
   echo::info "Restoring the database with a $DUMP_FORMAT format"
@@ -468,7 +461,7 @@ function backup_restore_command(){
     "$DUMP_PLAIN_FORMAT")
       # --echo-all - echo the SQL statement
       # example of error: ERROR:  constraint "realm_list_registration_registration_realm_id_registration_fkey" for relation "realm_list_registration" already exists
-      eval_command "psql --echo-all --set ON_ERROR_STOP=on --single-transaction ${TARGET_DB_NAME} -f ${DUMP_FILE_TO_RESTORE} > ${DUMP_RESTORE_LOG}";
+      command::echo_eval "psql --echo-all --set ON_ERROR_STOP=on --single-transaction ${TARGET_DB_NAME} -f ${DUMP_FILE_TO_RESTORE} > ${DUMP_RESTORE_LOG}";
       ;;
     "$DUMP_CUSTOM_FORMAT")
     # Options:
@@ -479,7 +472,7 @@ function backup_restore_command(){
       # --create [-C]   : drop the database before restoring.
       # --exit-on-error : default is to continue and to display a count of errors at the end of the restoration
       # --file          : Specify output file for generated script, or for the listing when used with -l. Use '-' for stdout.
-      eval_command "pg_restore --exit-on-error -d ${TARGET_DB_NAME} --file ${DUMP_RESTORE_LOG} ${DUMP_FILE_TO_RESTORE}"
+      command::echo_eval "pg_restore --exit-on-error -d ${TARGET_DB_NAME} --file ${DUMP_RESTORE_LOG} ${DUMP_FILE_TO_RESTORE}"
       ;;
     *)
       echo::err "The format $DUMP_FORMAT is not yet implemented"
@@ -584,7 +577,7 @@ function backup_create_command(){
   cleaning_snapshot_dir
   
   echo::info "Dumping the database (${CTL_DATABASE_NAME}) into the snapshot directory"
-  eval_command "$EVAL_COMMAND"
+  command::echo_eval "$EVAL_COMMAND"
   echo::info "Done"
 
   echo::info "Checking the dump file validity"
@@ -592,12 +585,12 @@ function backup_create_command(){
 
   if [ "$DUMP_FORMAT" == "$DUMP_PLAIN_FORMAT" ]; then
     echo::info "Gzip $DUMP_FORMAT format"
-    eval_command "gzip < $DUMP_PATH > $DUMP_PATH.$DUMP_PLAIN_ZIP_EXTENSION"
-    eval_command "rm $DUMP_PATH"
+    command::echo_eval "gzip < $DUMP_PATH > $DUMP_PATH.$DUMP_PLAIN_ZIP_EXTENSION"
+    command::echo_eval "rm $DUMP_PATH"
   fi
 
   echo::info "Creating a snapshot"
-  eval_command "restic backup ${DUMP_SNAPSHOT_DIR}"
+  command::echo_eval "restic backup ${PG_X_DUMP_SNAPSHOT_DIR}"
   echo::info "Snapshot done"
 
   echo::info "Backup done"
@@ -611,7 +604,7 @@ function backup_ls_command(){
 
   SNAPSHOT_ID=${1:-}
   if [ "$SNAPSHOT_ID" == "" ]; then
-    restic find --long  "${PG_DUMP_DATA}"
+    restic find --long  "${PG_X_DUMP_DIR}"
   else
     restic ls "$SNAPSHOT_ID"
   fi
@@ -662,7 +655,7 @@ function backup_fetch_command(){
 
   RESTORE_DIR=$(fetch_snapshot "$SNAPSHOT_ID")
   echo::info "The restored snapshot files are available at ${RESTORE_DIR}"
-  eval_command "find $RESTORE_DIR"
+  command::echo_eval "find $RESTORE_DIR"
 
 }
 
@@ -785,12 +778,12 @@ if [ -z "${CTL_DATABASE_NAME}" ]; then
 fi;
 
 ## Dump parameter
-PG_DUMP_DATA=${PG_DUMP_DATA:-}
-if [[ ${PG_DUMP_DATA} == "" ]]; then
-    echo::err "The PG_DUMP_DATA var is unknown"
-    exit 1;
+PG_X_DUMP_DIR=${PG_X_DUMP_DIR:-}
+if [[ ${PG_X_DUMP_DIR} == "" ]]; then
+    PG_X_DUMP_DIR="$(path::get_temp_directory)/pg-x/dump"
+    echo::warn "The PG_X_DUMP_DIR env was not set. Default value of $PG_X_DUMP_DIR used"
 fi;
-mkdir -p "$PG_DUMP_DATA"
+mkdir -p "$PG_X_DUMP_DIR"
 ###############################
 # Constant for the dump FORMAT
 ###############################
@@ -808,20 +801,14 @@ DUMP_FORMAT_DIR="dir"
 # The snapshot directory is the directory that restic snapshots.
 # ie before every dump creation/restoration,
 # the directory is cleaned to have only one dump at a time
-DUMP_SNAPSHOT_DIR="$PG_DUMP_DATA/snapshot"
-mkdir -p "$DUMP_SNAPSHOT_DIR"
+PG_X_DUMP_SNAPSHOT_DIR=${PG_X_DUMP_SNAPSHOT_DIR:-"$PG_X_DUMP_DIR/snapshot"}
+mkdir -p "$PG_X_DUMP_SNAPSHOT_DIR"
 
-# RESTORE_DIR_BASE where the files restored are going
+# PG_X_RESTORE_DIR_BASE where the files restored are going
 # We use a specific directory be able to mount a volume
-RESTORE_DIR_BASE=/tmp/snapshot-restore
-mkdir -p "$RESTORE_DIR_BASE"
+PG_X_RESTORE_DIR_BASE=/tmp/snapshot-restore
+mkdir -p "$PG_X_RESTORE_DIR_BASE"
 
-
-CLI_NAME=$(basename "$0") # Name of the cli
-if [[ -z ${DBCTL_LOG_FILE} ]]; then
-  echo::err "The DBCTL_LOG_FILE env is mandatory"
-  exit 1
-fi
 
 #######################################
 ## Main
@@ -836,6 +823,12 @@ fi
 # Assign the first argument to a string
 COMMAND="$1"
 shift  # Remove the first argument from the argument list
+
+# synopsis for doc
+if [ "$COMMAND" == "synopsis" ]; then
+  doc::help help
+  exit
+fi
 
 # Assign the rest of the arguments to an array
 declare -a ARGS=()

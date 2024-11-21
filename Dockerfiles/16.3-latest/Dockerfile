@@ -193,22 +193,13 @@ RUN mkdir -p /etc/bash_completion.d && \
     restic generate --bash-completion /etc/bash_completion.d/restic
 
 ##################################
-# Dbctl
+# Pg-x
 ##################################
-# The log file should be writable by root and the user running postgres
-ENV DBCTL_HOME=${DATA_HOME}/dbctl
-ENV DBCTL_LOG_HOME=${LOG_HOME}/dbctl
-ENV DBCTL_LOG_FILE=${DBCTL_LOG_HOME}/dbctl.log
-ADD --chmod=0775 --chown=root:postgres ../../bin/dbctl /usr/local/bin/
-RUN echo "Create dbctl log Home" && \
-    mkdir -p "$DBCTL_LOG_HOME" && \
-    touch "$DBCTL_LOG_FILE" && \
-    chmod a+w "$DBCTL_LOG_FILE"
-
+ADD --chmod=0775 --chown=root:postgres bin/pg-x /usr/local/bin/
 
 # The directory where to dump pg dump backup
 # The os user is always postgres
-ENV PG_DUMP_DATA=${DATA_HOME}/pgdump
+ENV PG_X_DUMP_DIR=${DATA_HOME}/pgdump
 
 
 # Other env are set in postgres-client.sh
