@@ -14,4 +14,4 @@ If you edit a conf file on a running system, you have to
 
 ## Client authentication file (pg_hba.conf)
 
-[](postgres-pg_hba.conf.md)
+[](postgres-auth-pg_hba.conf)
