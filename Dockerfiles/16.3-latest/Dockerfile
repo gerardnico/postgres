@@ -1,5 +1,7 @@
-# Postgres
+# Extension of the Docker image Postgres
+# https://github.com/docker-library/docs/blob/master/postgres/README.md
 # For ref and Dockerfile example, see postgres-docker
+
 
 # version of this file
 # PG version
