@@ -212,7 +212,7 @@ Change the config files at: `/data/sql_exporter`
 
 ## How to Develop (dscript)
 
-See [dev doc](docs/kb/dev.md)
+See [dev doc](contrib/dev.md)
 
 ## Kubernetes
 

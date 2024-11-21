@@ -1,24 +1,34 @@
 # Psql Client
 
 
+## Connect
 
 ```bash
-sudo -i -u postgres
+sudo -i -u ${POSTGRES_USER:-postgres}
 # then
 psql
-# then to connect to the postgres database
-\c postgres
-\c combo # combo for the api app
-# then to see the schema
+```
+* then to connect to the postgres database
+```bash
+\c # check the current database
+\c anotherdb # connect to another database
+```
+
+## Command
+
+### See the schemas
+```
 \dn
 ```
 
 
-More
+### get help / list of command
+
 ```bash
-# then to get a list of command
 \?
 ```
+
+### List
 
 ```bash
 \q            : exit
@@ -30,6 +40,8 @@ More
 \du           : user account
 \d object     : describe object (table, index, ...)
 ```
+
+### Set the search path
 
 ```sql
 SET search_path TO cs_realms,cs_ip;

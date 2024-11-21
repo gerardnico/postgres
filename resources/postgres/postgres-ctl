@@ -75,7 +75,6 @@ fi
 # Create the data repositories
 # They should be owned by the running user
 echo::info "Create the data repositories"
-mkdir -p "${DBCTL_HOME}"
 mkdir -p "${PG_X_DUMP_DIR}"
 
 

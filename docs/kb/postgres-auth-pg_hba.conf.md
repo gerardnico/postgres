@@ -8,6 +8,11 @@ The `pg_hba.conf` [configuration](postgres-conf.md) file controls:
 * how clients are authenticated,
 * which PostgresSQL usernames they can use, which databases they can access.
 
+The `pg_hba.conf` records are examined sequentially for each connection attempt,
+the order of the records is significant.
+
+
+
 ## Example
 
 Allow the user "foo" from host 192.168.1.100 to connect to the primary
@@ -18,6 +23,10 @@ Allow the user "foo" from host 192.168.1.100 to connect to the primary
 # TYPE  DATABASE        USER            ADDRESS                 METHOD
 host    replication     foo             192.168.1.100/32        md5
 ```
+
+## Default
+
+See [pg_hba.conf](../../resources/postgres/conf/pg_hba.conf)
 
 ## Location (Default and conf)
 

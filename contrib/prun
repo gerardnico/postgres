@@ -16,12 +16,12 @@ mkdir -p "$MOUNT_POINT"
 chmod 0777 "$MOUNT_POINT"
 
 # Mount dbctl to edit it
-DBCTL_PATH="$PROJECT_DIR/bin/dbctl"
-if [[ ! -f "$DBCTL_PATH" ]]; then
-  echo::err "dbctl not found at $DBCTL_PATH"
+PX_X_PATH="$PROJECT_DIR/bin/pg-x"
+if [[ ! -f "$PX_X_PATH" ]]; then
+  echo::err "pg-x not found at $PX_X_PATH"
   exit 1
 fi
-chmod +x "$DBCTL_PATH"
+chmod +x "$PX_X_PATH"
 
 # Mount bashlib to edit the library
 BASHLIB_PATH="$PROJECT_DIR/vendors/bash-lib/lib"
@@ -30,6 +30,12 @@ if [[ ! -d "$BASHLIB_PATH" ]]; then
   exit 1
 fi
 
+# Postgres CTL
+POSTGRES_CTL="$PROJECT_DIR/resources/postgres/postgres-ctl"
+if [[ ! -f "$POSTGRES_CTL" ]]; then
+  echo::err "POSTGRES_CTL ($POSTGRES_CTL) is not a file"
+  exit 1
+fi
 
 # Mount profile.d to edit the bash script
 PROFILE_D="$PROJECT_DIR/resources/bash/profile/profile.d"
@@ -47,10 +53,11 @@ fi
 # ie -c shared_buffers=256MB -c max_connections=200 are conf
 # Ref: Database Conf at https://hub.docker.com/_/postgres/
 dock-x run \
-  --mount type=bind,source="${DBCTL_PATH}",target=/usr/local/bin/dbctl \
+  --mount type=bind,source="${PX_X_PATH}",target=/usr/local/bin/pg-x \
   -v "${MOUNT_POINT}":/data \
   -v "${PROFILE_D}":/etc/profile.d \
   -v "${BASHLIB_PATH}":/usr/local/lib/bash-lib \
+  -v "$POSTGRES_CTL":/usr/local/bin/postgres-ctl \
   postgres \
   -c shared_buffers=256MB \
   -c max_connections=200

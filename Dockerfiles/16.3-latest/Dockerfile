@@ -22,6 +22,11 @@ ARG RESTIC_VERSION=0.16.4
 # https://hub.docker.com/r/rclone/rclone/tags
 ARG RCLONE_VERSION=1.68.1
 
+# Walg
+# Os name is mandatory and may change, it's not a stand linux
+# Ubuntu works on debian
+ARG WALG_VERSION="v3.0.3"
+ARG WALG_OSNAME=ubuntu-20.04
 
 # C Extensions use pgxs for the build
 # https://www.postgresql.org/docs/current/extend-pgxs.html
@@ -62,6 +67,8 @@ RUN checkinstall -D --install=no --fstrans=no --backup=no --pakdir=/tmp --nodoc
 # We set it here as a multi-step build then
 FROM rclone/rclone:${RCLONE_VERSION} AS rclone
 
+
+
 ###############################################
 # Postgres Final
 ###############################################
@@ -73,6 +80,8 @@ ARG PG_MAJOR_VERSION
 ARG RESTIC_VERSION
 ARG RCLONE_VERSION
 ARG LOG_HOME
+ARG WALG_VERSION
+ARG WALG_OSNAME
 
 ARG ARCHIVE_MODE=on
 ARG ARCHIVE_TIMEOUT=3600
@@ -86,6 +95,16 @@ RUN apt-get install --no-install-recommends -y /tmp/*.deb
 
 # rclone
 COPY --chmod=0775 --from=rclone /usr/local/bin/rclone /usr/local/bin/
+
+####################
+# Walg
+####################
+ADD https://github.com/wal-g/wal-g/releases/download/$WALG_VERSION/wal-g-pg-${WALG_OSNAME}-amd64.tar.gz \
+    wal-g-pg-${WALG_OSNAME}-amd64.tar.gz
+RUN tar -zxvf wal-g-pg-${WALG_OSNAME}-amd64.tar.gz && \
+    rm wal-g-pg-${WALG_OSNAME}-amd64.tar.gz && \
+    mv wal-g-pg-${WALG_OSNAME}-amd64 /usr/local/bin/wal-g && \
+    chmod +x /usr/local/bin/wal-g
 
 ####################################
 # Package
@@ -281,4 +300,6 @@ HEALTHCHECK --interval=2s --timeout=2s --retries=10 CMD pg_isready --username po
 ## wrapper around docker-entrypoint.sh
 ADD --chmod=0775 --chown=root:postgres ../../resources/postgres/postgres-ctl /usr/local/bin/
 
-ENTRYPOINT [ "postgres-ctl" ]
+# We set the full path so that if the script is mounted
+# the user can see a permission denied if the script does not have any execution rights
+ENTRYPOINT [ "/usr/local/bin/postgres-ctl" ]
