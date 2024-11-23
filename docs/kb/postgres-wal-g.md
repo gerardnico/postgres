@@ -30,13 +30,31 @@ https://github.com/stephane-klein/playground-postgresql-walg/
 docker run --env-file [your env file] postgres-walg sh /root/dump.sh
 ```
 
+
+
+## Env
+
+```ini
+# See environment variables documentation \
+# https://github.com/wal-g/wal-g/blob/master/docs/STORAGES.md
+AWS_ACCESS_KEY_ID=xxxx
+AWS_SECRET_ACCESS_KEY=secret
+AWS_ENDPOINT=s3-like-service:9000
+WALG_COMPRESSION_METHOD=brotli
+```
+
+### Dump Location
+
+Location of the dump (ie base backup and wal files)
+```bash
+WALE_S3_PREFIX=s3://bucket-name/path/to/folder
+WALG_S3_PREFIX=s3://bucket-name/path
+WALG_S3_PREFIX=s3://postgres-dev/dev-name
+```
+
 ## Backup Scenario
 
 [](https://github.com/stephane-klein/playground-postgresql-walg/blob/master/README.md)
-
-### Create a container
-
-ie `docker run` or `drun`
 
 
 ### Connect
@@ -53,11 +71,6 @@ winpty docker exec -it postgres bash
 
 * SQL Client: localhost: 5432
 
-### Make base backup
-
-```bash
-wal-g backup-push -f $PGDATA
-```
 
 ### Monitoring
 
@@ -159,29 +172,17 @@ select * from pg_last_xact_replay_timestamp ();
 
 More [Recovery function](https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-RECOVERY-CONTROL)
 
-## Check / Verify
 
-https://github.com/wal-g/wal-g/blob/a2c015d8d22289877f548c3ee2a9cbed5695ce33/docs/PostgreSQL.md#wal-verify
+## Concepts
 
-```bash
-wal-g backup-list
-wal-g wal-show
-wal-g wal-verify integrity timeline
-```
-
-## wal deletion
+### wal deletion
 
 Postgres recycles wal files, so you should see the number of files
 remaining pretty much the same, but the file names should change
 during the time.
 
-## wal-g wal-push
 
-```bash
-export WALG_PREVENT_WAL_OVERWRITE=1; wal-g wal-push $PGDATA/pg_wal/00000003000000000000000B
-```
-
-## Delta
+### Delta-Backup
 
 with `WALG_DELTA_MAX_STEPS` to a number greater than 0
 
@@ -192,14 +193,49 @@ Deltas is a whole new story.
 Delta-backup is a backup which can be applied to base backup.
 But much faster than WAL, because it is parallel and squashes multiple page writes into one.
 
-## Example / command List
+## Commands
+
+### Verify Integrity / timeline (wal-verify)
+
+https://github.com/wal-g/wal-g/blob/a2c015d8d22289877f548c3ee2a9cbed5695ce33/docs/PostgreSQL.md#wal-verify
 
 ```bash
-# To list the backups
 wal-g backup-list
+wal-g wal-show
+wal-g wal-verify integrity timeline
+```
 
-# Delete the older than 5 days backup
+### Switch a WAL
+
+```sql
+SELECT pg_switch_wal()
+```
+
+### Make base backup (backup-push)
+
+In the container:
+```bash
+wal-g backup-push $PGDATA
+```
+will create a base backup at the [dump location](#dump-location)
+
+### List the base backup dump (backup-list)
+
+To list the backups
+```bash
+wal-g backup-list
+```
+
+### Delete the older than 5 days backup
+
+```bash
 wal-g delete retain Full 5 --confirm
+```
+
+### Push Wal (wal-push)
+
+```bash
+export WALG_PREVENT_WAL_OVERWRITE=1; wal-g wal-push $PGDATA/pg_wal/00000003000000000000000B
 ```
 
 ## Benchmark
@@ -218,7 +254,7 @@ https://github.com/wal-g/wal-g/blob/master/benchmarks
 
 ## Exporter
 
-The [exporter](https://github.com/wal-g/wal-g/issues/323#issuecomment-595663310) have the following metrics :
+The [prometheus exporter](postgres-exporter.md) have the following metrics :
 
 * total wal segments: total wal segments on remote storage
 * continuous wal segments: total wal segments without gap starting from last uploaded
@@ -226,3 +262,5 @@ The [exporter](https://github.com/wal-g/wal-g/issues/323#issuecomment-595663310)
 * missing wal segments: Missing wal segment on remote storage between base backups
 * missing wal segments at end: Missing wal segment near the master position, should not go higher than 1. Replication
   lag for remote storage
+
+[Ref](https://github.com/wal-g/wal-g/issues/323#issuecomment-595663310)

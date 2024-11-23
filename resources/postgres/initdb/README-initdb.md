@@ -1,3 +1,3 @@
 # Init Script
 
-These scripts are run only at creation of the database.
+These scripts are sourced only at creation of the database.

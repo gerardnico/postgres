@@ -164,13 +164,7 @@ LABEL rclone-version=${RCLONE_VERSION}
 ##############
 # Env
 ###############
-## The mounted directory
-ENV DATA_HOME=/data
-RUN echo "Create the data directory" && \
-    mkdir -p "${DATA_HOME}" && \
-    echo "Every user should be able to create directory in it" && \
-    chown root:postgres "${DATA_HOME}" && \
-    chmod 0777 "${DATA_HOME}"
+
 
 # The log home
 ENV LOG_HOME=/var/log
@@ -184,6 +178,24 @@ ENV LC_COLLATE=C.UTF-8
 # TZ is supported by Postgres
 # Postgres: https://www.postgresql.org/docs/current/app-initdb.html#id-1.9.5.3.7
 ENV TZ='Etc/UTC'
+
+## The mounted directory
+ENV PG_X_HOME="/data"
+RUN mkdir -p "${PG_X_HOME}"; \
+    # Every user should be able to create directory in it
+    chown root:postgres "${PG_X_HOME}"; \
+    chmod 0777 "${PG_X_HOME}"
+
+# The directory where to dump pg dump backup
+# The os user is always postgres
+ENV PG_X_DUMP_DIR="$PG_X_HOME/pgdump"
+
+# PgData is not set by default to /var/lib/postgresql/data
+# to be able to mount only one volume
+# if more saved data are needed
+# Don't create it, the owner should be the user that starts
+# it will create it if needed
+ENV PGDATA="$PG_X_HOME/pgdata"
 
 #####################################
 # Bash
@@ -217,10 +229,6 @@ RUN mkdir -p /etc/bash_completion.d && \
 ##################################
 ADD --chmod=0775 --chown=root:postgres bin/pg-x /usr/local/bin/
 
-# The directory where to dump pg dump backup
-# The os user is always postgres
-ENV PG_X_DUMP_DIR=${DATA_HOME}/pgdump
-
 
 # Other env are set in postgres-client.sh
 # All date are UTC (Os, Database, ...)
@@ -234,17 +242,11 @@ ENV PGTZ='Etc/UTC'
 # Don't add secret in their
 # The conf directory default to `pgdata`
 ENV POSTGRES_CONF_DIR=/etc/postgresql/
-ADD ../../resources/postgres/conf/postgresql.conf ${POSTGRES_CONF_DIR}/postgresql.conf.template
-RUN envsubst < ${POSTGRES_CONF_DIR}/postgresql.conf.template > ${POSTGRES_CONF_DIR}/postgresql.conf
+#ADD ../../resources/postgres/conf/postgresql.conf ${POSTGRES_CONF_DIR}/postgresql.conf.template
+#RUN envsubst < ${POSTGRES_CONF_DIR}/postgresql.conf.template > ${POSTGRES_CONF_DIR}/postgresql.conf
 ADD ../../resources/postgres/conf/pg_hba.conf ${POSTGRES_CONF_DIR}/pg_hba.conf.template
 RUN envsubst < ${POSTGRES_CONF_DIR}/pg_hba.conf.template > ${POSTGRES_CONF_DIR}/pg_hba.conf
 
-# PgData is not set in /var/lib/postgresql/data
-# to be able to mount only one volume
-# if more saved data are needed
-# Don't create it, the owner should be the user that starts
-# it will create it if needed
-ENV PGDATA=${DATA_HOME}/pgdata
 
 
 # Database Init Scripts
@@ -263,36 +265,21 @@ ADD resources/postgres/script/* /script/
 
 
 ####################################
-# Third User (ie al 1000:1000)
+# Postgres User (ie al 1000:1000)
 ####################################
-# Gives permission to the running user to create its own HOME
-# Gives permission to all users to create log
-# All users can write in /run because supervisor will write socket/file in it (Error: Cannot open an HTTP server: socket.error reported errno.EACCES)
-# Add the user 1000:1000 (al) and give it the postgres group
-RUN chmod 0777 /home && \
-    chmod -R 0777 /var/log && \
-    chmod 0777 /run && \
-    echo "Give permission on /var/run/supervisor.sock (to avoid Permission denied: file: /usr/lib/python3/dist-packages/supervisor/xmlrpc.py)" && \
-    chmod 0777 /var && \
-    chmod 0777 /var/run && \
-    echo "Add the group as config writer" && \
-    chmod g+w /etc/postgresql && \
-    echo "postgres user from 999 to 1000"
-
-RUN deluser postgres
-# RUN groupdel postgres
-RUN groupadd -r postgres --gid=1000
-    # https://salsa.debian.org/postgresql/postgresql-common/blob/997d842ee744687d99a2b2d95c1083a2615c79e8/debian/postgresql-common.postinst#L32-35
-RUN useradd -r -g postgres --uid=1000 --home-dir=/var/lib/postgresql --shell=/bin/bash postgres
-    # also create the postgres user's home directory with appropriate permissions
-    # see https://github.com/docker-library/postgres/issues/274
-RUN mkdir -p /var/lib/postgresql
-RUN chown -R postgres:postgres /var/lib/postgresql
-RUN chown -R postgres:postgres /run/postgresql
+# Reset the id of the postgres user from 999 to 1000
+# so that it's WSL ready
+## Adapted from https://github.com/docker-library/postgres/blob/cf9b6cdd64f8a81b1abf9e487886f47e4971abe2/11/Dockerfile#L15
+RUN deluser postgres; \
+    groupadd -r postgres --gid=1000; \
+    useradd -r -g postgres --uid=1000 --home-dir=/var/lib/postgresql --shell=/bin/bash postgres; \
+    mkdir -p /var/lib/postgresql; \
+    chown -R postgres:postgres /var/lib/postgresql; \
+    chown -R postgres:postgres /run/postgresql
 
 
 ####################################
-# Docker
+# HEALTHCHECK
 ####################################
 # pg_isready issues a connection check to a PostgreSQL database.
 HEALTHCHECK --interval=2s --timeout=2s --retries=10 CMD pg_isready --username postgres --host localhost

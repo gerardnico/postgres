@@ -2,14 +2,13 @@
 
 
 ## Exporter
-### SQL Exporter (Alert, Promtheus, Grafana)
+### SQL Exporter (Alert, Prometheus, Grafana)
 
-https://github.com/justwatchcom/sql_exporter/tree/master/examples
+[](sql-exporter.md)
 
 ### Postgres Exporter
 
-https://github.com/prometheus-community/postgres_exporter
-https://github.com/fly-apps/postgres-flex/blob/master/grafanadash.example.json
+[](postgres-exporter.md)
 
 ## Object
 

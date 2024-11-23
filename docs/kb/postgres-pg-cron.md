@@ -1,3 +1,24 @@
+# Pg-Cron
+
+## Postgres Conf
+
+```ini
+# Add settings for extensions here
+
+# pg_cron
+# https://github.com/citusdata/pg_cron?tab=readme-ov-file#setting-up-pg_cron
+shared_preload_libraries = 'pg_cron'
+
+#------------------------------------------------------------------------------
+# PG CRON
+#------------------------------------------------------------------------------
+# The database where pg_cron background worker expects its metadata tables to be created
+# Changed at runtime via the entrypoint
+cron.database_name = 'postgres'
+# Timezone created at image buildtime (UTC)
+cron.timezone = '${PGTZ}'
+```
+
 ## Steps
 
 ### Create

@@ -1,11 +1,10 @@
-#!/bin/bash
-
-set -euo pipefail
 
 ## If not set, return
 if [ "${PG_CRON_DB:-}" == "" ]; then
   echo "PG_CRON_DB env, not configured. Pg Cron Extension not enabled"
-  exit;
+  # no exit as this file is sourced
+  # otherwise the entrypoint quit
+  return;
 fi;
 
 echo "Enabling Pg_cron and PlPython extension (PG_CRON_DB env configured to $PG_CRON_DB)"

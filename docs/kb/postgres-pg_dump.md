@@ -7,12 +7,17 @@
 * internally executes SELECT statements.
 * use any default connection settings and [environment variables used by the `libpq` library](https://www.postgresql.org/docs/current/libpq-envars.html).
 
-## Format
 
+## Dump Format
+
+* dir: 
+* sql: a sql file
+* archive: one custom archive format
+* 
 * custom, 
-* directory, 
+* directory: one data file by tables. It will upload only the table changed 
 * tar,
-* plain text (default)
+* plain text (default) - a sql file
 
 ### Plain Text ie SQL (Default)
 
@@ -133,7 +138,7 @@ SET row_security = off;
 ```
 
 
-## Dir
+### Dir
 
 Example: data for data file and toc for code.
 

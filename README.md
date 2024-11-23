@@ -30,168 +30,34 @@ docker logs postgres
 
 ## Extras
 
-### WSL ready
 
-Under WSL, the user will be `postgres`
+* Backup dump and restore
+* Point In Time recovery with restic
+* [Wsl Adapted](docs/how-to/init.md#wsl)
 
-Why? The default image use the [UID 999](https://github.com/docker-library/postgres/blob/cf9b6cdd64f8a81b1abf9e487886f47e4971abe2/11/Dockerfile#L15) but the WSL first user is 1000.
-This images rectify this so that the Postgres user has the uid `1000`
+## How to
 
-Set the user to be `1000` and you will own the files in your local mount
-```bash
-# dock-x
-DOCK_X_USER=1000:1000
-# docker
-docker --user 1000:1000
-```
-By default, the image starts as `root`
+* [How to init/create the container](docs/how-to/init.md)
+* [How to perform a dump](docs/how-to/dump.md)
+* [How to restore from a dump](docs/how-to/restore.md)
+* [How to set the retention policy and integrity check](docs/how-to/snapshot.md)
 
-## How To
-
-### How to restore
-
-
-
-## How to perform a full backup
-
-The backup location is set via:
-
-```bash
-WALG_S3_PREFIX=s3://bucket-name/path
-WALG_S3_PREFIX=s3://postgres-dev/dev-name
-```
-
-In the container:
-```bash
-wal-g backup-push $PGDATA
-```
-
-
-
-## Diagnostic
-
-Log is on at `$PGDATA/log`
 
 ## Env
 
-When creating the image. See [.env](.env)
+See [.env](.env)
 
-```ini
-# See environment variables documentation \
-# https://github.com/wal-g/wal-g/blob/master/docs/STORAGES.md
-WALE_S3_PREFIX=s3://bucket-name/path/to/folder
-AWS_ACCESS_KEY_ID=xxxx
-AWS_SECRET_ACCESS_KEY=secret
-AWS_ENDPOINT=s3-like-service:9000
-WALG_COMPRESSION_METHOD=brotli
-```
-
-All [libpq environments variable](https://www.postgresql.org/docs/current/libpq-envars.html) may be applied
-for client app.
-
-## dbctl
-
-### Bash script
-
-### Database procedure
-
-You can't restore from the database as it expects a manual confirmation.
-
-```sql
--- noinspection SqlResolve
-CALL public.dbctl('dump-ls');
-```
-
-## process
-
-The process that are running in the container and their owner.
-
-```bash
-UID        PID  PPID  C STIME TTY          TIME CMD
-root        25    21  0 14:14 pts/0    00:00:00 /bin/bash /usr/local/bin/postgres-entrypoint.sh postgres -c config_file=/etc/postgresql/postgresql.conf
-root        27    23  0 14:14 pts/1    00:00:00 postgres_exporter --log.level=warn
-postgres    48    25  0 14:14 pts/0    00:00:00 postgres -c config_file=/etc/postgresql/postgresql.conf
-postgres    69    48  0 14:14 ?        00:00:00 postgres: logger
-postgres    70    48  0 14:14 ?        00:00:00 postgres: checkpointer
-postgres    71    48  0 14:14 ?        00:00:00 postgres: background writer
-postgres    73    48  0 14:14 ?        00:00:00 postgres: walwriter
-postgres    74    48  0 14:14 ?        00:00:00 postgres: autovacuum launcher
-postgres    75    48  0 14:14 ?        00:00:00 postgres: archiver
-postgres    76    48  0 14:14 ?        00:00:00 postgres: pg_cron launcher
-postgres    77    48  0 14:14 ?        00:00:00 postgres: logical replication launcher
-postgres    78    48  0 14:14 ?        00:00:00 postgres: eraldy eraldy 172.17.0.1(47582) idle
-root        95     0  0 14:16 pts/2    00:00:00 bash
-root       323    95  0 14:20 pts/2    00:00:00 ps -ef
-```
+Note that all [libpq environments variable](https://www.postgresql.org/docs/current/libpq-envars.html) 
+may be applied for client app.
 
 
-Memory:
-```bash
-8.72656 MB postgres: background writer
-8.58203 MB postgres: autovacuum launcher
-8.41406 MB postgres: logical replication launcher
-8.05469 MB postgres: archiver failed on
-6.19141 MB postgres: logger
-39.082 MB postgres -c config_file=/etc/postgresql/postgresql.conf -c
-3.57812 MB /bin/bash /usr/local/bin/postgres-ctl postgres -c
-31.3359 MB /usr/bin/python3 /usr/bin/supervisord -c /supervisord.conf
-18.8984 MB postgres: checkpointer
-14.5 MB postgres: walwriter
-14.4492 MB postgres: pg_cron launcher
-0.921875 MB /bin/sh
-0.882812 MB /usr/bin/tail -f /var/log/postgres/postgres.log
-Total: 101.2MiB
-```
+## Support
 
-## Database: Postgres
+### Diagnostic
 
-After initialization, a database cluster will contain a database named postgres,
-which is meant as a default database for use by utilities, users and third party applications.
-The database server itself does not require the postgres database to exist,
-but many external utility programs assume it exists.
-https://www.postgresql.org/docs/9.1/creating-cluster.html
+Log is on at `$PGDATA/log`
 
-## Schema restoration
-
-We don't use SQL restoration for schema
-because with cascade, drops all objects that depend on the schema.
-And this object may be external.
-
-There is no guarantee that the results of a specific-schema dump
-can be successfully restored into a clean database.
-
-Why? Because the dump (pg_dump) will not dump any other database dependent objects
-than the selected schema(s).
-
-## Dump Format
-
-* dir: one data file by tables. It will upload only the table changed
-* sql: a sql file
-* archive: one custom archive format
-
-## Wal-g
-
-## Restic
-
-### Subset Data Check
-
-With [rolling data check](https://restic.readthedocs.io/en/v0.13.1/045_working_with_repos.html#checking-integrity-and-consistency).
-
-You can set the t value in `--read-data-subset=n/t` with the `DBCTL_CHECK_SUBSET` env
-
-```env
-DBCTL_CHECK_SUBSET=5
-```
-
-### Forget Policy
-
-[Forget Policy](https://restic.readthedocs.io/en/v0.13.1/060_forget.html?highlight=forget#removing-snapshots-according-to-a-policy)
-
-```
-DBCTL_FORGET_POLICY=--keep-hourly 5 --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 3
-```
-
-### Support - Restic Repo not found
+### Restic Repo not found
 
 Be sure to path the good password in the environment variable ie `RESTIC_PASSWORD`.
 
@@ -200,42 +66,9 @@ postgres          | Restic Repo not found - Restic init at s3:host/bucket-name
 postgres          | Fatal: create key in repository at s3:host/bucket-name failed: repository master key and config already initialized
 ```
 
-## Postgres Exporter
 
-The Postgres exporter is `optional` and will not kill the container if shutdown.
+## How to contribute
 
-http://localhost:9187/metrics
+See [dev doc](contrib/README)
 
-`POSTGRES_EXPORTER_FLAGS` env
-by default: `--log.level=warn`
-
-`POSTGRES_EXPORTER_ENV` env
-by default: `DATA_SOURCE_NAME='sslmode=disable' PG_EXPORTER_DISABLE_SETTINGS_METRICS=true`
-
-User and host are mandatory
-[Data Source Name Doc](https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters)
-
-## Sql Exporter
-
-The SQL exporter is `optional`
-
-`SQL_EXPORTER_FLAGS`
-
-[](https://github.com/free/sql_exporter/blob/master/README.md#data-source-names)
-
-Change the config files at: `/data/sql_exporter`
-
-
-
-
-## How to Develop (dscript)
-
-See [dev doc](contrib/dev.md)
-
-## Kubernetes
-
-"docker-ensure-initdb.sh" as a Kubernetes "init container" 
-to ensure the provided database directory is initialized; see also "startup probes" for an alternative solution
-(no-op if database is already initialized)
-[Ref](https://github.com/docker-library/postgres/blob/d08757ccb56ee047efd76c41dbc148e2e2c4f68f/16/bookworm/docker-ensure-initdb.sh)
 

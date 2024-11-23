@@ -2,6 +2,8 @@
 
 A dump restore is performed via the [pg-x command](../bin-generated/pg-x.md)
 
+
+
 ## How to restore a database from a snapshot dump
 
 
@@ -35,3 +37,9 @@ dbctl dump-backup
 # prune the repo
 dbctl dump-prune
 ```
+
+
+## FAQ
+### Why I can't restore from a database procedure?
+
+You can't restore from the database as it expects a manual confirmation.

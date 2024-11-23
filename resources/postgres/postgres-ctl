@@ -10,6 +10,8 @@
 set -Eeuo pipefail
 source bashlib-echo.sh
 
+
+
 # Pg Cron Conf
 PG_CRON_DB=${PG_CRON_DB:-}
 if [ "$PG_CRON_DB" != "" ]; then

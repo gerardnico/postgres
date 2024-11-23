@@ -1,18 +1,37 @@
+# Postgres Exporter
+
+The Postgres exporter is `optional` and will not kill the container if shutdown.
 https://github.com/prometheus-community/postgres_exporter
 
-http://localhost:9187/metrics
+## Conf
 
 Can be configured via
 
 * [command line flags](https://github.com/prometheus-community/postgres_exporter?tab=readme-ov-file#flags)
-* [env](https://github.com/prometheus-community/postgres_exporter?tab=readme-ov-file#environment-variables)
+* [env](#env)
 * `postgres_exporter.yml` config file
+
+User and host are mandatory
+[Data Source Name Doc](https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters)
+
+
+### Env
+
+* [env](https://github.com/prometheus-community/postgres_exporter?tab=readme-ov-file#environment-variables)
+
+* `POSTGRES_EXPORTER_FLAGS` env by default: `--log.level=warn`
+* `POSTGRES_EXPORTER_ENV` env by default: `DATA_SOURCE_NAME='sslmode=disable' PG_EXPORTER_DISABLE_SETTINGS_METRICS=true`
+
+
+## Help
 
 ```
 postgres_exporter --help
 ```
 
-Metrics
+## Metrics
+
+http://localhost:9187/metrics
 
 ```
 pg_stat_activity_count
@@ -57,7 +76,7 @@ pg_replication_lag
 pg_database_size_bytes
 ```
 
-# Query
+## Query
 
 No more supported by postgres-exporter
 https://git.app.uib.no/caleno/helm-charts/-/blob/master/stable/prometheus-postgres-exporter/values.yaml#L214
@@ -75,3 +94,8 @@ pg_database:
         usage: "GAUGE"
         description: "Disk space used by the database"
 ```
+
+## Grafana
+
+
+https://github.com/fly-apps/postgres-flex/blob/master/grafanadash.example.json
