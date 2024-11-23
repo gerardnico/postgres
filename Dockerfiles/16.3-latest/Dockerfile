@@ -122,9 +122,8 @@ RUN apt-get update && \
     apt-get install --no-install-recommends -y gettext && \
     echo "Supervisor" && \
     apt-get install --no-install-recommends -y supervisor && \
-    echo "PG extension (cron, pgvector, plpython extension)" && \
+    echo "PG extension (pgvector, plpython extension)" && \
     apt-get install --no-install-recommends -y \
-        postgresql-${PG_MAJOR}-cron \
         postgresql-${PG_MAJOR}-pgvector \
         python3 \
         postgresql-plpython3-${PG_MAJOR} && \
@@ -278,10 +277,18 @@ RUN chmod 0777 /home && \
     chmod 0777 /var/run && \
     echo "Add the group as config writer" && \
     chmod g+w /etc/postgresql && \
-    echo "Add the al user" && \
-    groupadd -g 1000 al && \
-    useradd -m --uid=1000 --gid 1000 -s /bin/bash al
+    echo "postgres user from 999 to 1000"
 
+RUN deluser postgres
+# RUN groupdel postgres
+RUN groupadd -r postgres --gid=1000
+    # https://salsa.debian.org/postgresql/postgresql-common/blob/997d842ee744687d99a2b2d95c1083a2615c79e8/debian/postgresql-common.postinst#L32-35
+RUN useradd -r -g postgres --uid=1000 --home-dir=/var/lib/postgresql --shell=/bin/bash postgres
+    # also create the postgres user's home directory with appropriate permissions
+    # see https://github.com/docker-library/postgres/issues/274
+RUN mkdir -p /var/lib/postgresql
+RUN chown -R postgres:postgres /var/lib/postgresql
+RUN chown -R postgres:postgres /run/postgresql
 
 
 ####################################
