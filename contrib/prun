@@ -53,6 +53,7 @@ fi
 # ie -c shared_buffers=256MB -c max_connections=200 are conf
 # Ref: Database Conf at https://hub.docker.com/_/postgres/
 dock-x run \
+  -d \
   --mount type=bind,source="${PX_X_PATH}",target=/usr/local/bin/pg-x \
   -v "${MOUNT_POINT}":/data \
   -v "${PROFILE_D}":/etc/profile.d \
