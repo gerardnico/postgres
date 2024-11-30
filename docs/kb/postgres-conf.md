@@ -12,6 +12,9 @@ If you edit a conf file on a running system, you have to
 * run `pg_ctl reload`
 * or execute `SELECT pg_reload_conf()`
 
+
+psql -c "SELECT pg_reload_conf();"
+
 ## Client authentication file (pg_hba.conf)
 
 [](postgres-auth-pg_hba.conf)

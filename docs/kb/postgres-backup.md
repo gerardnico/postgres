@@ -6,9 +6,30 @@
 
 Don't as the database needs to be shutdown.
 
+## cncf physical backup wal
+
+https://cloudnative-pg.io/documentation/1.24/backup/
+
+## Kubernetes logical backup (dump/restore)
+
+how to take a logical backup of the app database in the cluster-example Postgres cluster, from the cluster-example-1 pod in custom format, which is the most versatile way to take logical backups in PostgreSQL.
+
+kubectl exec cluster-example-1 -c postgres \
+  -- pg_dump -Fc -d app > app.dump
+  
+kubectl exec -i new-cluster-example-1 -c postgres \
+  -- pg_restore --no-owner --role=app -d app --verbose < app.dump
+
+The example in this section assumes that you have no other global objects (databases and roles) to dump and restore, as per our recommendation. In case you have multiple roles, make sure you have taken a backup using pg_dumpall -g and you manually restore them in the new cluster.
+
+In case you have multiple databases, you need to repeat the above operation one database at a time, making sure you assign the right ownership.
+Cncf backup doc: https://cloudnative-pg.io/documentation/1.24/troubleshooting/#emergency-backup
+
 ## Pgdump
 
-See [](postgres-pgdump.md)
+pg_dump utility - which relies on logical backups instead of physical ones. 
+
+See [pgdump](postgres-pgdump.md)
 
 ## Continuous Archiving and Point-in-Time Recovery (PITR/Wal)
 

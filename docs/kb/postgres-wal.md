@@ -1,6 +1,9 @@
 # Write Ahead Log Archiving (Point in Time recovery)
 
 ## About
+
+Recovering a Postgres backup relies on replaying transaction logs (also known as xlog or WAL files). 
+
 WAL is the mechanism that PostgreSQL uses to ensure that no committed changes are lost. 
 
 * Transactions are written sequentially to the WAL 
