@@ -10,6 +10,14 @@
 
 pg_dump utility relies on logical backups instead of physical ones.
 
+## vs pg_dumpall
+
+pg_dumpall  dumps global objects that are common to all databases, namely database roles, tablespaces, and privilege grants for configuration parameters. (pg_dump does not save these objects.)
+
+## password
+
+If you use password authentication it will ask for a password each time. It is convenient to have a ~/.pgpass file in such cases. See Section 32.16 for more information.
+https://www.postgresql.org/docs/current/libpq-pgpass.html
 
 ## kubernetes
 
