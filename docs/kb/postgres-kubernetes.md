@@ -5,3 +5,66 @@
 to ensure the provided database directory is initialized; see also "startup probes" for an alternative solution
 (no-op if database is already initialized)
 [Ref](https://github.com/docker-library/postgres/blob/d08757ccb56ee047efd76c41dbc148e2e2c4f68f/16/bookworm/docker-ensure-initdb.sh)
+
+
+## CNPG
+
+https://github.com/cloudnative-pg/cloudnative-pg?tab=readme-ov-file
+
+It defines a Cluster resource representing a PostgreSQL cluster, including a primary instance and optional replicas for high availability and read query offloading within a Kubernetes namespace. Applications within the same Kubernetes cluster connect seamlessly to the PostgreSQL database through a service managed by the operator. External applications can access PostgreSQL using a LoadBalancer service, which can be exposed via TCP with the service template capability.
+
+How to blog:
+https://glasskube.dev/guides/deploy-Postgres-kubernetes/
+
+Make sure to always specific a separate volume for the write-ahead-log for PostgreSQL, as we don't want to fill up all of our disk space with logs.
+
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: pg-glasskube-cluster
+spec:
+  instances: 3
+  storage:
+    size: 1Gi
+  walStorage:
+    size: 1Gi
+
+
+
+
+
+
+## kube
+
+* 1. Databases love high IOPS low latency storage. So try to use local, non-clustered storage for the Postgres nodes. Skip using longhorn and use local disks and use database replicas for hot data durability. 
+* 2. Don't use volume backup for database disaster recovery. You get crash consistent recovery at best. 
+
+If you use Longhorn you will also get higher latency and your DB performance will suffer. 
+
+Use the CNPG provided:
+* Backup - https://cloudnative-pg.io/documentation/1.24/backup/
+* and Recovery procedures. https://cloudnative-pg.io/documentation/1.24/recovery/
+
+They also use S3/Object Storage and do not require you to have a storage cluster, like Longhorn. 
+
+You also get freebies, like:
+* Point In Time recovery 
+* and Replica Clusters. https://cloudnative-pg.io/documentation/1.24/replica_cluster/
+
+Remember you are dealing with databases here. If you DIY features like backups you most likely will do it wrong. 
+
+I recommend you to stay with the proven solutions, like CNPGs backup implementation using Barman Object Store.
+
+on CloudNativePG docs:
+
+“Block storage considerations (Ceph/Longhorn)
+
+Most block storage solutions in Kubernetes, such as Longhorn and Ceph, recommend having multiple replicas of a volume to enhance resiliency. This approach works well for workloads that lack built-in resiliency.
+
+However, CloudNativePG integrates this resiliency directly into the Postgres Cluster through the number of instances and the persistent volumes attached to them, as explained in “Synchronizing the state”.
+
+As a result, defining additional replicas at the storage level can lead to write amplification, unnecessarily increasing disk I/O and space usage.
+
+longhorn has a data locality mode (strict-local) which forces a volume to be local to the host with only 1 replica. This is beneficial when data replication is on the application level.
+
+https://www.reddit.com/r/kubernetes/s/EwtFl4Z3Lk
