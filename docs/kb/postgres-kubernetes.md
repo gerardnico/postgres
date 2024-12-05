@@ -7,6 +7,19 @@ to ensure the provided database directory is initialized; see also "startup prob
 [Ref](https://github.com/docker-library/postgres/blob/d08757ccb56ee047efd76c41dbc148e2e2c4f68f/16/bookworm/docker-ensure-initdb.sh)
 ## Operator
 
+### create database and user
+
+Postgres credentials manager.
+
+Connect to an instance via the top level user and create databases with users and passwords via a referenced secret or something.
+
+make dishing out Postgres multi tenancy setups to teams easier.
+
+PostgreSQL Operator to create Databases and Users across multiple engines
+
+https://easymile.github.io/postgresql-operator/
+https://github.com/EasyMile/postgresql-operator
+
 ### crunchy
 
 https://github.com/CrunchyData/postgres-operator
@@ -33,6 +46,10 @@ spec:
   walStorage:
     size: 1Gi
 
+## zalando postgres operator
+
+
+https://github.com/zalando/postgres-operator
 
 
 
