@@ -15,3 +15,8 @@ postgresql.conf
 ```conf
 max_wal_senders = 1
 ```
+
+## logical
+
+Sequin efficiently captures changes using logical replication. Except at very extreme scale, logical replication adds little overhead to the performance of your database. 
+https://github.com/sequinstream/sequin
