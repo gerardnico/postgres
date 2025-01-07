@@ -30,35 +30,7 @@ https://medium.com/@joao_o/postgresql-high-availability-and-automatic-failover-u
 https://github.com/EnterpriseDB/repmgr/tree/master
 
 ### Postgres Kubernetes Operator
-#### CloudNative
-
-https://cloudnative-pg.io/
-https://cloudnative-pg.io/documentation
-https://github.com/cloudnative-pg/cloudnative-pg/blob/main/docs/src/quickstart.md
-
-It defines a new Kubernetes resource called Cluster representing
-a PostgreSQL cluster made up of a single primary
-and an optional number of replicas that co-exist
-in a chosen Kubernetes namespace for High Availability and offloading of read-only queries.
-
-#### Crunchy Data
-
-https://github.com/CrunchyData/postgres-operator
-
-
-#### Zalando (Patroni, Spilo)
-
-https://github.com/zalando/postgres-operator/
-It makes easy and convenient to run Patroni based clusters on K8s.
-
-```bash
-kubectl create namespace test
-kubectl config set-context $(kubectl config current-context) --namespace=test
-```
-
-Based on:
-* [Patroni](https://github.com/patroni/patroni) - HA Postgres deployment template
-* [Spilo](https://github.com/zalando/spilo) - Image of PostgreSQL and Patroni
+See [](postgres-kubernetes.md#operator)
 
 
 ### HA Citus (Distributed ???)
