@@ -136,5 +136,7 @@ https://www.reddit.com/r/kubernetes/s/EwtFl4Z3Lk
 
 ## doc
 
-https://kube.fm/which-postgresql-operator-david
+
+Post: https://medium.com/@davidpech_39825/dbaas-in-2024-which-postgresql-operator-for-kubernetes-to-select-for-your-platform-51cf4d5dec4a
+Podcast: https://kube.fm/which-postgresql-operator-david
 
