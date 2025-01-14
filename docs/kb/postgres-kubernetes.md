@@ -5,55 +5,6 @@
 to ensure the provided database directory is initialized; see also "startup probes" for an alternative solution
 (no-op if database is already initialized)
 [Ref](https://github.com/docker-library/postgres/blob/d08757ccb56ee047efd76c41dbc148e2e2c4f68f/16/bookworm/docker-ensure-initdb.sh)
-## Operator
-
-### create database and user
-
-Postgres credentials manager.
-
-Connect to an instance via the top level user and create databases with users and passwords via a referenced secret or something.
-
-make dishing out Postgres multi tenancy setups to teams easier.
-
-PostgreSQL Operator to create Databases and Users across multiple engines
-
-https://easymile.github.io/postgresql-operator/
-https://github.com/EasyMile/postgresql-operator
-
-### crunchy
-
-https://github.com/CrunchyData/postgres-operator
-
-### CNPG
-
-https://github.com/cloudnative-pg/cloudnative-pg?tab=readme-ov-file
-
-It defines a Cluster resource representing a PostgreSQL cluster, including a primary instance and optional replicas for high availability and read query offloading within a Kubernetes namespace. Applications within the same Kubernetes cluster connect seamlessly to the PostgreSQL database through a service managed by the operator. External applications can access PostgreSQL using a LoadBalancer service, which can be exposed via TCP with the service template capability.
-
-How to blog:
-https://glasskube.dev/guides/deploy-Postgres-kubernetes/
-
-Make sure to always specific a separate volume for the write-ahead-log for PostgreSQL, as we don't want to fill up all of our disk space with logs.
-
-apiVersion: postgresql.cnpg.io/v1
-kind: Cluster
-metadata:
-  name: pg-glasskube-cluster
-spec:
-  instances: 3
-  storage:
-    size: 1Gi
-  walStorage:
-    size: 1Gi
-
-## zalando postgres operator
-
-
-https://github.com/zalando/postgres-operator
-
-
-i chose zalando postgres operator, because of the operator gui, makes it super easy to deploy clusters
-
 
 ## kube
 
@@ -91,6 +42,99 @@ longhorn has a data locality mode (strict-local) which forces a volume to be loc
 https://www.reddit.com/r/kubernetes/s/EwtFl4Z3Lk
 
 
+
+## Operator
+
+
+
+### CloudNative (CNPG)
+
+https://github.com/cloudnative-pg/cloudnative-pg?tab=readme-ov-file
+
+It defines a Cluster resource representing a PostgreSQL cluster, including a primary instance and optional replicas for high availability and read query offloading within a Kubernetes namespace. Applications within the same Kubernetes cluster connect seamlessly to the PostgreSQL database through a service managed by the operator. External applications can access PostgreSQL using a LoadBalancer service, which can be exposed via TCP with the service template capability.
+
+How to blog:
+https://glasskube.dev/guides/deploy-Postgres-kubernetes/
+
+Make sure to always specific a separate volume for the write-ahead-log for PostgreSQL, as we don't want to fill up all of our disk space with logs.
+```yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+name: pg-glasskube-cluster
+spec:
+  instances: 3
+  storage:
+    size: 1Gi
+  walStorage:
+    size: 1Gi
+```
+
+https://cloudnative-pg.io/
+https://cloudnative-pg.io/documentation
+https://github.com/cloudnative-pg/cloudnative-pg/blob/main/docs/src/quickstart.md
+
+It defines a new Kubernetes resource called Cluster representing
+a PostgreSQL cluster made up of a single primary
+and an optional number of replicas that co-exist
+in a chosen Kubernetes namespace for High Availability and offloading of read-only queries.
+
+### Crunchy Data
+
+
+
+
+https://github.com/CrunchyData/postgres-operator
+
+
+
+### Zalando (Patroni, Spilo)
+
+
+https://github.com/zalando/postgres-operator/
+It makes easy and convenient to run Patroni based clusters on K8s.
+
+i chose zalando postgres operator, because of the operator gui, makes it super easy to deploy clusters
+
+
+```bash
+kubectl create namespace test
+kubectl config set-context $(kubectl config current-context) --namespace=test
+```
+
+Based on:
+* [Patroni](https://github.com/patroni/patroni) - HA Postgres deployment template
+* [Spilo](https://github.com/zalando/spilo) - Image of PostgreSQL and Patroni
+
+### Kubegres
+
+https://github.com/reactive-tech/kubegres
+
+Backup runs: 
+```bash
+pg_dumpall -h mypostgres-replica -U postgres -c | gzip > /var/lib/backup/mypostgres-backup-05_10_2021_10_36_00.gz
+```
+https://www.kubegres.io/doc/enable-backup.html
+
+## Management Operator
+
+### EasyMile postgresql-operator to create database and user
+
+Postgres credentials manager.
+
+Connect to an instance via the top level user and create databases with users and passwords via a referenced secret or something.
+
+They make dishing out Postgres multi tenancy setups to teams easier.
+
+PostgreSQL Operator to create Databases and Users across multiple engines
+
+https://easymile.github.io/postgresql-operator/
+https://github.com/EasyMile/postgresql-operator
+
+https://www.reddit.com/r/kubernetes/s/EwtFl4Z3Lk
+
+
 ## doc
 
 https://kube.fm/which-postgresql-operator-david
+
