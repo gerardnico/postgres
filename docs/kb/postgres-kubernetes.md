@@ -52,7 +52,7 @@ spec:
 https://github.com/zalando/postgres-operator
 
 
-
+i chose zalando postgres operator, because of the operator gui, makes it super easy to deploy clusters
 
 
 ## kube
@@ -89,3 +89,8 @@ As a result, defining additional replicas at the storage level can lead to write
 longhorn has a data locality mode (strict-local) which forces a volume to be local to the host with only 1 replica. This is beneficial when data replication is on the application level.
 
 https://www.reddit.com/r/kubernetes/s/EwtFl4Z3Lk
+
+
+## doc
+
+https://kube.fm/which-postgresql-operator-david
