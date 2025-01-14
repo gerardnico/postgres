@@ -42,6 +42,34 @@ longhorn has a data locality mode (strict-local) which forces a volume to be loc
 https://www.reddit.com/r/kubernetes/s/EwtFl4Z3Lk
 
 
+## Type installation
+
+### (non-operator) Single-instance 
+
+/ Static installation — designed to run only the primary, very limited cluster support included out-of-the-box
+
+They don’t provide additional management value as operators, but they are simple and production-ready. If you don’t require DB Cluster for small applications without H-A requirements — you can use them.
+
+https://github.com/bitnami/charts/tree/main/bitnami/postgresql
+
+https://medium.com/@davidpech_39825/dbaas-in-2024-which-postgresql-operator-for-kubernetes-to-select-for-your-platform-4d17352b35a1
+
+
+### StatefulSet — first generation
+
+depending on the Kubernetes primitive without Patroni
+
+### Patroni — second generation 
+
+utilizing proven H-A solution outside of Kubernetes
+
+### “CloudNative” operator — third generation 
+
+where the H-A logic is integrated inside the operator itself
+
+StatefulSet was originally designed to handle stateful workloads with some identity around PersistentVolume, BUT the way it scales (+1) is very limiting for many use cases. Simple example — you have pg-0 primary Pod, pg-1 corrupted replica, pg-2 healthy replica. What to do not? If you lower StatefulSet size, you kill the healthy replica instead of the corrupted one. So the new marketing term “CloudNative” operator was born promising that it includes the logic inside.
+
+
 
 ## Operator
 
@@ -90,6 +118,7 @@ https://github.com/CrunchyData/postgres-operator
 
 ### Zalando (Patroni, Spilo)
 
+patroni is a supervisor daemon running all the time capable of handling restarts
 
 https://github.com/zalando/postgres-operator/
 It makes easy and convenient to run Patroni based clusters on K8s.
@@ -136,7 +165,13 @@ https://www.reddit.com/r/kubernetes/s/EwtFl4Z3Lk
 
 ## doc
 
+### how to choose an operator 
 
 Post: https://medium.com/@davidpech_39825/dbaas-in-2024-which-postgresql-operator-for-kubernetes-to-select-for-your-platform-51cf4d5dec4a
 Podcast: https://kube.fm/which-postgresql-operator-david
 
+### Recommended architectures for PostgreSQL in Kubernetes
+
+Posted on September 29, 2023 by Gabriele Bartolini
+
+https://www.cncf.io/blog/2023/09/29/recommended-architectures-for-postgresql-in-kubernetes/
