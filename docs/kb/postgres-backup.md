@@ -2,6 +2,12 @@
 
 
 
+There are only two ways to backup your database.  This is not a unique problem with PostgreSQL. It's just how things are.
+
+* Physical (pgbasebackup) - copy all the database files and WAL to be able to restore to a consistant state. This method does not know or care about logical database objects. Just the physical files.
+
+* Logical (pg_dump) - An export of the logical database structures/objects so you can re-create the database as a whole or just parts.
+
 ## File system
 
 Don't as the database needs to be shutdown.

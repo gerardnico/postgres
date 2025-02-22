@@ -74,6 +74,32 @@ StatefulSet was originally designed to handle stateful workloads with some ident
 ## Operator
 
 
+non exhaustive list, in chronological order from their publication on GitHub:
+
+Crunchy Data Postgres Operator (2017)
+Zalando Postgres Operator (2017)
+Stackgres (2020)
+Percona Operator for PostgreSQL (2021)
+Kubegres (2021)
+Ref: https://github.com/cloudnative-pg/cloudnative-pg/blob/main/docs/src/faq.md
+
+
+### failover management 
+
+most of these operators use an external failover management tool ( like Patroni, repmgr, or Stolon) and rely on StatefulSets.
+
+Why isn't CloudNativePG using StatefulSets?
+
+CloudNativePG does not rely on StatefulSet resources, and instead manages the underlying PVCs directly by leveraging the selected storage class for dynamic provisioning.
+refer to the "Custom Pod Controller" section for details and reasons behind this decision.
+https://github.com/cloudnative-pg/cloudnative-pg/blob/main/docs/src/controller.md
+They use a  instance manager, which runs inside each PostgreSQL pod that makes sure that the database server is up, including accessory services like logging, export of metrics, continuous archiving of WAL files, etc.
+https://github.com/cloudnative-pg/cloudnative-pg/blob/main/docs/src/instance_manager.md
+
+### outage
+
+an outage of the operator does not necessarily imply a PostgreSQL database outage; it's like running a database without a DBA or system administrator.
+
 
 ### CloudNative (CNPG)
 
