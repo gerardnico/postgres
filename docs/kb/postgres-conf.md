@@ -1,7 +1,7 @@
 # Postgres Conf
 
-* postgresql.conf
-* pg_hba.conf
+* $PGDATA/postgresql.conf
+* [pg_hba.conf](postgres-auth-pg_hba.conf.md)
 * and pg_ident.conf
 
 ## reload
@@ -12,8 +12,10 @@ If you edit a conf file on a running system, you have to
 * run `pg_ctl reload`
 * or execute `SELECT pg_reload_conf()`
 
-
-psql -c "SELECT pg_reload_conf();"
+Example:
+```bash
+psql -U postgres -c "SELECT pg_reload_conf();"
+```
 
 ## Client authentication file (pg_hba.conf)
 

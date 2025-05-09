@@ -31,7 +31,7 @@ See [pg_hba.conf](../../resources/postgres/conf/pg_hba.conf)
 ## Location (Default and conf)
 
 ```bash
-$PGDATA/pg_hba.conf
+cat $PGDATA/pg_hba.conf
 ```
 It can be set via the [hba_file config](https://www.postgresql.org/docs/current/runtime-config-file-locations.html) 
 ```bash
@@ -67,6 +67,14 @@ hostnogssenc  DATABASE  USER  ADDRESS  METHOD  [OPTIONS]
 ```
 
 where the uppercase items must be replaced by actual values.
+
+Example:
+
+```bash
+echo "host all all 0.0.0.0/0 scram-sha-256" >> $PGDATA/pg_hba.conf
+host    all             all             0.0.0.0/0   scram-sha-256
+host all all all scram-sha-256
+```
 
 ### Connection Type
 

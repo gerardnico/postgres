@@ -5,7 +5,7 @@ netstat -lp --protocol=unix | grep postgres
 
 The interfaces on which the PostgreSQL server listens to are configured 
 
-* in postgresql.conf.
+* in [postgresql.conf](postgres-conf.md).
 ```conf
 listen_addresses = '*'
 ```

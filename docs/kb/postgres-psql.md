@@ -1,22 +1,40 @@
 # Psql Client
 
+## Network
+
+See kb at network-port.md
 
 ## Connect
 
 ```bash
 sudo -i -u ${POSTGRES_USER:-postgres}
-# then
 psql
+# or
+psql -U postgres
+# or
+export PGUSER=postgres
+psql
+# or
+# In a bridge network (docker default), see the host ip of postgres with `docker network inspect bridge`
+
+docker run -it --rm postgres psql -h 172.17.0.2 -U postgres
+docker container top postgres
+# to get the wsl ip from wsl host
+ip -br a 
+# to get the wsl ip from windows host
+ipconfig.exe
 ```
 * then to connect to the postgres database
 ```bash
 \c # check the current database
+# output: You are now connected to database "postgres" as user "postgres".
 \c anotherdb # connect to another database
 ```
 
 ## Command
 
 ### See the schemas
+
 ```
 \dn
 ```
