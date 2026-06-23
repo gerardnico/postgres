@@ -1,7 +1,7 @@
 # Postgres and Wal-g
 
 This project contains the [Dockerfile](Dockerfile) that creates the image
-`ghcr.io/gerardnico/postgres-walg:18.4-latest`.
+`ghcr.io/gerardnico/postgres:18.4-walg-latest`.
 
 It's an extension of the [official postgres database](https://hub.docker.com/_/postgres)
 that contains the [wal-g](https://wal-g.readthedocs.io) executable for backup and restoration

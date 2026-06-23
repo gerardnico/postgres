@@ -1,6 +1,6 @@
 services:
   postgres-walg:
-    image: ghcr.io/gerardnico/postgres-walg:18.4-latest
+    image: ghcr.io/gerardnico/postgres:18.4-walg-latest
     user: ${USER_ID}:${GROUP_ID}
     environment:
       # The only mandatory

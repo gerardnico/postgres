@@ -25,5 +25,5 @@ export BASHLIB_ECHO_LEVEL=4
 echo::info "Building $DOCK_X_NAME"
 #dock-x build "${@}"
 pushd "$PROJECT_ROOT" || exit 1
-dock-x build -f "Dockerfiles/$DOCK_X_NAME/Dockerfile" "${*}" .
+dock-x build -f "Dockerfiles/$DOCK_X_CONTAINER/Dockerfile" "${*}" .
 popd || exit 1

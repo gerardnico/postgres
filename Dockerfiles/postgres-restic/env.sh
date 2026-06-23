@@ -3,9 +3,9 @@ export PG_VERSION=18.4
 export PG_DOCKER_TAG=18.4-bookworm
 
 
-export DOCK_X_TAG=${PG_VERSION}-latest
-# image name
-export DOCK_X_NAME=postgres-restic
+export DOCK_X_TAG=${PG_VERSION}-restic-latest
+# image name (should be the same as the github repo)
+export DOCK_X_NAME=postgres
 # image namespace
 export DOCK_X_NAMESPACE=gerardnico
 # Image registry

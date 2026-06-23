@@ -14,9 +14,9 @@ export PG_DOCKER_TAG="$PG_VERSION-bookworm"
 # 16.3-latest
 # where 16.3 is the postgres version
 # and latest is our release
-export DOCK_X_TAG=${PG_VERSION}-latest
-# image name
-export DOCK_X_NAME=postgres-walg
+export DOCK_X_TAG=${PG_VERSION}-walg-latest
+# image name / should be the same than the repo
+export DOCK_X_NAME=postgres
 # image namespace
 export DOCK_X_NAMESPACE=gerardnico
 # Image registry
