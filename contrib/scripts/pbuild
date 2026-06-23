@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+# This script should be run from the mono project directory
+
+if [ "${BASHLIB_PATH:-}" == "" ]; then
+  SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || echo "${BASH_SOURCE[0]}")")" && pwd)"
+  BASHLIB_PATH="$SCRIPT_DIR/../lib"
+  if [ ! -d "$BASHLIB_PATH" ]; then
+    echo "BASHLIB_PATH was not set and could not be found"
+    exit 1
+  fi
+fi
+export PATH="$BASHLIB_PATH:$PATH"
+
+source bashlib-echo.sh
+source bashlib-error.sh
+error::set_strict_mode
+error::set_trap
+
+
+echo::info "Copy the bash lib to build to make it available to the Docker context"
+task bashlib-cp
+
+export BASHLIB_ECHO_LEVEL=4
+echo::info "Building $DOCK_X_NAME"
+#dock-x build "${@}"
+pushd "$PROJECT_ROOT" || exit 1
+dock-x build -f "Dockerfiles/$DOCK_X_NAME/Dockerfile" "${*}" .
+popd || exit 1

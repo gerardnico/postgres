@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+# docker-compose wrapper to encapsulate the secrets
+# should be started with a point ./ as it's not in the path
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || echo "${BASH_SOURCE[0]}")")" && pwd)"
+source  "$SCRIPT_DIR/resources/walg-runtime-env.sh"
+
+# be sure the mount directory exists
+mkdir -p "$SCRIPT_DIR/../../mount"
+
+docker-compose "$@"

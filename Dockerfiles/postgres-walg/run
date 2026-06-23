@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || echo "${BASH_SOURCE[0]}")")" && pwd)"
+source "$SCRIPT_DIR/env.sh"
+export CLI_NAME="walctl"
+
+source "$SCRIPT_DIR/resources/walg-runtime-env.sh"
+
+# to do, mount postgres conf and hba
+prun

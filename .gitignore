@@ -1,19 +1,41 @@
 .idea
-# no env file
-*.env
-logs
-# no secret
-**/*secret
-**/*secret.*
-# not passphrase
-**/*passphrase
-**/*passphrase.*
-# not temp
-temp
-# no private
-*private*
-# no pem (cer/ key)
-*.pem
+target
+build
+out
+
+# We copy it
+Dockerfiles/postgres-restic/bin/lib
+Dockerfiles/postgres-walg/bin/lib
+
+# Backup file of editor (ie name.md~ file)
+*~
+# orig are file created by the merge tool
+*.orig
+# aider files to ignore
+.aider*
+!.aiderignore
+
+# Terraform / Tofu
+.terraform
+*.tfstate
+*.tfstate.backup
+
+# Node modules
+node_modules
+# vscode
+.vscode
+# yarn
+.yarn
+# astro
+.astro
+# astro build
+dist
+
+# Python
+.venv
+*.egg-info/
+
 # The mount for postgres
 mount
-vendors
+# The bashlib
+bin/lib

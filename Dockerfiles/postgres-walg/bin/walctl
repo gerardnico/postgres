@@ -1,0 +1,244 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || echo "${BASH_SOURCE[0]}")")" && pwd)"
+BASHLIB_PATH="$SCRIPT_DIR/lib"
+if [ ! -d "$BASHLIB_PATH" ]; then
+  echo "BASHLIB_PATH does not exist"
+  exit 1
+fi
+export PATH="$BASHLIB_PATH:$PATH"
+
+
+source bashlib-echo.sh
+source bashlib-doc.sh
+source bashlib-error.sh
+source bashlib-path.sh
+source bashlib-command.sh
+error::set_trap
+
+function finish() {
+  printf "\n%s has finished\n" "$(basename "$0")" >/dev/stderr
+}
+trap finish EXIT
+
+
+
+
+# @description delete a database if it exists
+# @arg $1 the database name
+# @exitcode 0 if the database was dropped or does not exists
+# @exitcode 1 if the user didn't want to drop it
+drop_db_if_exists(){
+
+  local TARGET_DB_NAME=$1
+  if [ "$(psql -tAc "SELECT 1 FROM pg_database WHERE datname='${TARGET_DB_NAME}'")" != "1" ]; then
+    echo::info "The database ${TARGET_DB_NAME} does not exist."
+    return;
+  fi
+
+  echo::info "The database ${TARGET_DB_NAME} exits"
+  echo::info "Dropping the database ${TARGET_DB_NAME}? (y/N)"
+  read -r DROP_ANSWER
+  if [ "$DROP_ANSWER" != "y" ]; then
+      echo::info "Exiting..."
+      return 1
+  fi
+  command::echo_eval "dropdb ${TARGET_DB_NAME} --force -i"
+  echo::info "Dropping Done"
+
+}
+
+# @description return the dump format from a path
+# @stdout the dump format
+# @exitcode 1 if not format could be determined
+get_dump_format_from_path(){
+
+  DUMP_PATH=$1
+  EXTENSION=$(path::get_extension "$DUMP_PATH" 'first')
+  case $EXTENSION in
+    "$DUMP_CUSTOM_FILE_EXTENSION")
+      echo $DUMP_CUSTOM_FORMAT
+      return
+      ;;
+    "$DUMP_PLAIN_FILE_EXTENSION")
+      echo $DUMP_PLAIN_FORMAT
+      ;;
+    *)
+      echo::err "The extension $EXTENSION is unknown . The dump file ($DUMP_PATH) is not an custom (.$DUMP_CUSTOM_FILE_EXTENSION), nor a sql dump (.$DUMP_PLAIN_FILE_EXTENSION, .sql.gz)"
+      return 1
+  esac
+
+}
+
+# @description return the dump file path
+# @arg $1 - the dump format
+# @arg $2 - the database name
+# @arg $3 - a third archive extension such as zip, gz
+get_db_dump_path(){
+
+  local DUMP_FORMAT=$1
+  local DATABASE_NAME=$2
+  local ZIP_EXTENSION=${3:-}
+
+  # All dump files start with this prefix path
+  local FILE_EXTENSION;
+  # The prefix for a file
+  local DUMP_FILE_PREFIX="dump-file"
+  case $DUMP_FORMAT in
+    "$DUMP_PLAIN_FORMAT")
+      FILE_EXTENSION=".$DUMP_PLAIN_FILE_EXTENSION"
+      if [ "$ZIP_EXTENSION" != "" ]; then
+        FILE_EXTENSION="$FILE_EXTENSION.$ZIP_EXTENSION"
+      fi
+      DUMP_PATH_PREFIX=$DUMP_FILE_PREFIX
+      ;;
+    "$DUMP_CUSTOM_FORMAT")
+      FILE_EXTENSION=".$DUMP_CUSTOM_FILE_EXTENSION"
+      DUMP_PATH_PREFIX=$DUMP_FILE_PREFIX
+      ;;
+    "$DUMP_FORMAT_DIR")
+      FILE_EXTENSION=""
+      DUMP_PATH_PREFIX="dump-dir"
+      echo "$DB_DUMP_PATH_PREFIX-${DATABASE_NAME}"
+    ;;
+    *)
+      echo::err "File extension $DUMP_FORMAT does not produce a file"
+      return 1
+  esac
+
+  echo "$PG_X_DUMP_SNAPSHOT_DIR/$DUMP_PATH_PREFIX-db-${DATABASE_NAME}$FILE_EXTENSION"
+
+
+}
+
+
+
+
+
+
+function help() {
+  CLI_NAME=$(basename "$0")
+  echo ""
+  echo "Usage of the cli $CLI_NAME  against the database (${CTL_DATABASE_NAME})"
+  echo ""
+  echo "   ${CLI_NAME} command [--option [value] ...] arg1 arg2 ..."
+  echo ""
+  echo "where command is one of:"
+  echo "     * backup                   - create, restore, list database dump"
+
+  echo "     * help"
+  echo ""
+
+}
+
+
+
+
+
+
+function walg_restore(){
+
+  stop_word="recovered"
+
+  # 2 options: strace of snoops a tty
+  # read the stdout (fd/1) and stderr (fd/2) of overmind (proc/1)
+  # pb the PID on restart are not the same
+  # https://github.com/tmux/tmux/wiki/Control-Mode/fd5e33023fe7c16cb573b954d05c70e16d225a9a#pane-output
+  # debug the process (e.g. strace, dtrace/dtruss, gdb, lldb, ...)
+  # strace works using the ptrace system call, so if ptrace isn’t allowed
+  # ptrace needs to be allowed via a switch to the docker command (ie cap_add: SYS_PTRACE)
+  # strace -e trace=write -s 1000 -p 1 2>&1 | while ....
+  # ie prints write operation of the process (1000 length) specified by PID (-p 1)
+  # https://unix.stackexchange.com/questions/58550/how-to-view-the-output-of-a-running-process-in-another-bash-session
+  # watch which snoops a given tty, e.g.
+  # watch /dev/pts/0
+  # https://github.com/rapiz1/catp/
+  # if you cat you just delete from the log the long line
+  cat /proc/1/fd/1 /proc/1/fd/2 | while IFS= read -r line
+  # you can write to them ls >/proc/1/fd/1
+  # https://github.com/DarthSim/overmind/issues/111
+  # cat /proc/20/fd/1 /proc/20/fd/2
+  do
+      echo "$line"
+      if [[ "$line" == *"$stop_word"* ]]; then
+          break
+      fi
+  done
+
+}
+
+
+
+
+#################################
+## Global Parameters
+#################################
+CTL_DATABASE_NAME=${POSTGRES_DB:-}
+if [ "${CTL_DATABASE_NAME}" == "" ]; then
+  CTL_DATABASE_NAME=${POSTGRES_USER:-}
+fi;
+if [ "${CTL_DATABASE_NAME}" == "" ]; then
+  echo::err "The database could not be determined via POSTGRES_DB or POSTGRES_USER"
+  exit 1;
+fi;
+
+
+
+
+#######################################
+## Main
+#######################################
+
+if [[ $# -eq 0 ]]; then
+  help
+  echo::err 'No command was given.'
+  exit 1
+fi
+
+# Assign the first argument to a string
+COMMAND="$1"
+shift  # Remove the first argument from the argument list
+
+# synopsis for doc
+if [ "$COMMAND" == "synopsis" ]; then
+  doc::help help
+  exit
+fi
+
+# Assign the rest of the arguments to an array
+declare -a ARGS=()
+ARGS=("$@")
+
+
+#################################
+## Start
+#################################
+echo
+echo "${CLI_NAME^} ${COMMAND^}"
+echo "-------------------------------------------"
+echo ""
+case ${COMMAND} in
+wal-ls)
+  psql -c "select * from pg_stat_archiver"
+#  psql -c "SELECT pg_switch_wal()"
+  EVAL_COMMAND="psql -c 'SHOW archive_mode; SHOW archive_command'"
+  echo::info "Executing the command:\n$EVAL_COMMAND"
+  eval "$EVAL_COMMAND"
+  ;;
+pg_ctl)
+  pg_ctl "${ARGS[@]}"
+  ;;
+psql)
+  psql "${ARGS[@]}"
+  ;;
+help)
+  help
+  ;;
+*)
+  help
+  echo::err "The command $COMMAND is unknown"
+  exit 1
+  ;;
+esac

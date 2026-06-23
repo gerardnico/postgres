@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || echo "${BASH_SOURCE[0]}")")" && pwd)"
+source "$SCRIPT_DIR/env.sh"
+
+# https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-with-a-personal-access-token-classic
+export CR_PAT
+CR_PAT=$(pass gerardnico/github/release-token)
+export USERNAME
+USERNAME=$(pass gerardnico/github/docker-user)
+echo "$CR_PAT" | docker login ghcr.io -u "$USERNAME" --password-stdin
+
+export BASHLIB_ECHO_LEVEL=4
+dock-x push

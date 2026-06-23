@@ -1,0 +1,38 @@
+services:
+  postgres-walg:
+    image: ghcr.io/gerardnico/postgres-walg:18.4-latest
+    user: ${USER_ID}:${GROUP_ID}
+    environment:
+      # The only mandatory
+      - POSTGRES_PASSWORD=postgres
+      # don't change the name of the user, it's hardcoded in the original image
+      # https://github.com/docker-library/postgres/blob/cf9b6cdd64f8a81b1abf9e487886f47e4971abe2/11/Dockerfile#L15
+      - POSTGRES_USER=postgres
+      # this name may be hardcoded in extensions
+      - POSTGRES_DB=postgres
+      # The default - https://github.com/docker-library/docs/blob/master/postgres/README.md#postgres_host_auth_method
+      - POSTGRES_HOST_AUTH_METHOD=scram-sha-256
+      # The default - https://github.com/docker-library/docs/blob/master/postgres/README.md#pgdata
+      # This value must be a child of /var/lib/postgresql
+      - PGDATA=/var/lib/postgresql/18/docker
+      # UTC for the database
+      - TZ=Etc/UTC
+      # UTC for the psql cli
+      - PGTZ=Etc/UTC
+      # Walg, check the walg-runtime-env.sh file for more info on each of them
+      - WALG_S3_PREFIX=${WALG_S3_PREFIX}
+      - WALG_COMPRESSION_METHOD=${WALG_COMPRESSION_METHOD}
+      - WALG_LIBSODIUM_KEY=${WALG_LIBSODIUM_KEY}
+      - WALG_LIBSODIUM_KEY_TRANSFORM=${WALG_LIBSODIUM_KEY_TRANSFORM}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_ENDPOINT=${AWS_ENDPOINT}
+      - AWS_S3_FORCE_PATH_STYLE=${AWS_S3_FORCE_PATH_STYLE}
+    command: [
+      postgres,
+      -c, config_file=/etc/postgresql/postgresql.conf,
+      -c, max_connections=200
+    ]
+    volumes:
+      - ../../mount:/var/lib/postgresql
+      - ./resources/postgresql.conf:/etc/postgresql/postgresql.conf

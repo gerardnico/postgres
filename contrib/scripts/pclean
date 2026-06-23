@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+
+MOUNT="$PWD/mount"
+if [ -d "$MOUNT" ]; then
+  rm -rf "$MOUNT"
+  mkdir "$MOUNT"
+fi

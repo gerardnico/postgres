@@ -1,0 +1,75 @@
+#!/bin/bash
+
+# This script will:
+# * give the environment to the `postgres` process
+# * configure the extensions and external services for postgres
+#
+# It's a wrapper around the docker entrypoint
+# https://github.com/docker-library/postgres/blob/d08757ccb56ee047efd76c41dbc148e2e2c4f68f/16/bookworm/docker-entrypoint.sh#L161
+#
+set -Eeuo pipefail
+source bashlib-echo.sh
+
+
+# Pg Cron Conf
+PG_CRON_DB=${PG_CRON_DB:-}
+if [ "$PG_CRON_DB" != "" ]; then
+  if [ "$PG_CRON_DB" != "$POSTGRES_DB" ]; then
+    echo::err "The pg cron env (PG_CRON_DB) should have the value ($POSTGRES_DB), not the value ($PG_CRON_DB)"
+    echo::err "Sorry, we don't support multi-database yet."
+    exit 1;
+  fi
+  echo::info "PG Cron enabled on the database $PG_CRON_DB. Setting the default database name"
+  sed -i "s/cron\.database_name = '.*'/cron\.database_name = '$PG_CRON_DB'/" /etc/postgresql/postgresql.conf
+else
+  echo::info "PG_CRON_DB env not found. PG Cron not enabled"
+fi
+
+
+## Rclone
+RCLONE_CONF="$HOME"/.config/rclone/rclone.conf
+if [ ! -f "$RCLONE_CONF" ]; then
+  # to avoid the notice
+  # NOTICE: Config file "/home/wsl/.config/rclone/rclone.conf" not found - using defaults
+  mkdir -p "$HOME"/.config/rclone
+  touch "$RCLONE_CONF"
+fi
+
+
+## Restic
+## Only if the repo is set
+RESTIC_REPOSITORY=${RESTIC_REPOSITORY:-}
+if [[ ${RESTIC_REPOSITORY} != "" ]]; then
+  echo::info "Restic repo configured, checking the configuration"
+  RESTIC_PASSWORD=${RESTIC_PASSWORD:-}
+  if [[ ${RESTIC_PASSWORD+x} == "" ]]; then
+    echo::err "RESTIC_PASSWORD is not set";
+    exit 1;
+  fi
+  if  ! restic snapshots > /dev/null; then
+    echo::info "Restic Repo not found - Restic init at ${RESTIC_REPOSITORY}"
+    COMMAND="restic init -r $RESTIC_REPOSITORY"
+    echo::info "Executing the command: $COMMAND"
+    eval "$COMMAND"
+    echo::info "Done at ${RESTIC_REPOSITORY}"
+  else
+    echo::info "RESTIC Repo already configured";
+  fi
+else
+  echo::info "No restic repo configured - Ignoring"
+fi
+
+# Create the data repositories
+# They should be owned by the running user
+echo::info "Create the data repositories"
+mkdir -p "${PG_X_DUMP_DIR}"
+
+
+## Docker
+# Start the docker entrypoint
+# https://github.com/docker-library/postgres/blob/d08757ccb56ee047efd76c41dbc148e2e2c4f68f/16/bookworm/docker-entrypoint.sh
+# docker-entrypoint.sh of the postgres image is to bring the same behavior
+# It performs a initdb
+# https://www.postgresql.org/docs/current/creating-cluster.html
+echo::info "Starting postgres with docker-entrypoint.sh"
+docker-entrypoint.sh "$@"

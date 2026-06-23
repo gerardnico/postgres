@@ -1,0 +1,24 @@
+#!/bin/bash
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || echo "${BASH_SOURCE[0]}")")" && pwd)"
+source "$SCRIPT_DIR/env.sh"
+
+export CLI_NAME="pg-x"
+
+#################################
+# Restic with Rclone configuration
+# https://rclone.org/s3/#idrive-e2
+# rclone ls remote:bucket/path
+#################################
+export RESTIC_REPOSITORY=rclone:idrive:postgres-dev/restic
+export RESTIC_PASSWORD=vault:secret/postgres-dev/restic-password
+export RCLONE_CONFIG_IDRIVE_TYPE=s3
+export RCLONE_CONFIG_IDRIVE_PROVIDER=IDrive
+export RCLONE_CONFIG_IDRIVE_ENDPOINT=vault:secret/postgres-dev/s3-endpoint
+export RCLONE_CONFIG_IDRIVE_ACCESS_KEY_ID=vault:secret/postgres-dev/s3-access-key-id
+export RCLONE_CONFIG_IDRIVE_SECRET_ACCESS_KEY=vault:secret/postgres-dev/s3-secret-key
+export RCLONE_CONFIG_IDRIVE_NO_CHECK_BUCKET=true
+export RCLONE_CONFIG_IDRIVE_SERVER_SIDE_ENCRYPTION=aws:kms
+
+
+prun

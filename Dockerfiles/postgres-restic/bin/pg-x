@@ -1,0 +1,904 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" || echo "${BASH_SOURCE[0]}")")" && pwd)"
+BASHLIB_PATH="$SCRIPT_DIR/lib"
+if [ ! -d "$BASHLIB_PATH" ]; then
+  echo "BASHLIB_PATH does not exist"
+  exit 1
+fi
+export PATH="$BASHLIB_PATH:$PATH"
+
+
+source bashlib-echo.sh
+source bashlib-doc.sh
+source bashlib-error.sh
+source bashlib-path.sh
+source bashlib-command.sh
+error::set_trap
+
+function finish() {
+  printf "\n%s has finished\n" "$(basename "$0")" >/dev/stderr
+}
+trap finish EXIT
+
+
+
+# @description fetch a snapshot
+# @arg $1 snapshot id
+# @stdout the restore directory
+fetch_snapshot(){
+
+    SNAPSHOT_ID=$1
+    RESTORE_DIR="$PG_X_RESTORE_DIR_BASE/${SNAPSHOT_ID}"
+    if [ "${SNAPSHOT_ID}" = "latest" ]; then
+      # We need to clean otherwise we merge file system snapshot data
+      # and we may restore a bad dump file (a custom dump is taken before a plain dump for instance)
+      echo::info "Cleaning the latest fetch/restore directory"
+      command::echo_eval "rm -rf $RESTORE_DIR"
+    fi
+    echo::info "Creating the fetch/restore directory ($RESTORE_DIR)"
+    command::echo_eval "mkdir -p $PG_X_RESTORE_DIR_BASE"
+    echo::info "Directory created"
+
+    INCLUDE_PATH_PATTERN=$PG_X_DUMP_SNAPSHOT_DIR
+    echo::info "Fetching the backup dump from the snapshot (${SNAPSHOT_ID})"
+    command::echo_eval "restic restore --include ${INCLUDE_PATH_PATTERN} --target $RESTORE_DIR --verify ${SNAPSHOT_ID}"
+    echo::info "Fetching done"
+
+    echo "$RESTORE_DIR"
+
+}
+
+# @description delete a database if it exists
+# @arg $1 the database name
+# @exitcode 0 if the database was dropped or does not exists
+# @exitcode 1 if the user didn't want to drop it
+drop_db_if_exists(){
+
+  local TARGET_DB_NAME=$1
+  if [ "$(psql -tAc "SELECT 1 FROM pg_database WHERE datname='${TARGET_DB_NAME}'")" != "1" ]; then
+    echo::info "The database ${TARGET_DB_NAME} does not exist."
+    return;
+  fi
+
+  echo::info "The database ${TARGET_DB_NAME} exits"
+  echo::info "Dropping the database ${TARGET_DB_NAME}? (y/N)"
+  read -r DROP_ANSWER
+  if [ "$DROP_ANSWER" != "y" ]; then
+      echo::info "Exiting..."
+      return 1
+  fi
+  command::echo_eval "dropdb ${TARGET_DB_NAME} --force -i"
+  echo::info "Dropping Done"
+
+}
+
+# @description return the dump format from a path
+# @stdout the dump format
+# @exitcode 1 if not format could be determined
+get_dump_format_from_path(){
+
+  DUMP_PATH=$1
+  EXTENSION=$(path::get_extension "$DUMP_PATH" 'first')
+  case $EXTENSION in
+    "$DUMP_CUSTOM_FILE_EXTENSION")
+      echo $DUMP_CUSTOM_FORMAT
+      return
+      ;;
+    "$DUMP_PLAIN_FILE_EXTENSION")
+      echo $DUMP_PLAIN_FORMAT
+      ;;
+    *)
+      echo::err "The extension $EXTENSION is unknown . The dump file ($DUMP_PATH) is not an custom (.$DUMP_CUSTOM_FILE_EXTENSION), nor a sql dump (.$DUMP_PLAIN_FILE_EXTENSION, .sql.gz)"
+      return 1
+  esac
+
+}
+
+# @description return the dump file path
+# @arg $1 - the dump format
+# @arg $2 - the database name
+# @arg $3 - a third archive extension such as zip, gz
+get_db_dump_path(){
+
+  local DUMP_FORMAT=$1
+  local DATABASE_NAME=$2
+  local ZIP_EXTENSION=${3:-}
+
+  # All dump files start with this prefix path
+  local FILE_EXTENSION;
+  # The prefix for a file
+  local DUMP_FILE_PREFIX="dump-file"
+  case $DUMP_FORMAT in
+    "$DUMP_PLAIN_FORMAT")
+      FILE_EXTENSION=".$DUMP_PLAIN_FILE_EXTENSION"
+      if [ "$ZIP_EXTENSION" != "" ]; then
+        FILE_EXTENSION="$FILE_EXTENSION.$ZIP_EXTENSION"
+      fi
+      DUMP_PATH_PREFIX=$DUMP_FILE_PREFIX
+      ;;
+    "$DUMP_CUSTOM_FORMAT")
+      FILE_EXTENSION=".$DUMP_CUSTOM_FILE_EXTENSION"
+      DUMP_PATH_PREFIX=$DUMP_FILE_PREFIX
+      ;;
+    "$DUMP_FORMAT_DIR")
+      FILE_EXTENSION=""
+      DUMP_PATH_PREFIX="dump-dir"
+      echo "$DB_DUMP_PATH_PREFIX-${DATABASE_NAME}"
+    ;;
+    *)
+      echo::err "File extension $DUMP_FORMAT does not produce a file"
+      return 1
+  esac
+
+  echo "$PG_X_DUMP_SNAPSHOT_DIR/$DUMP_PATH_PREFIX-db-${DATABASE_NAME}$FILE_EXTENSION"
+
+
+}
+
+cleaning_snapshot_dir(){
+
+  echo::info "Cleaning the snapshot directory"
+  command::echo_eval "rm -rf $PG_X_DUMP_SNAPSHOT_DIR"
+  command::echo_eval "mkdir -p $PG_X_DUMP_SNAPSHOT_DIR"
+  echo::info "Directory cleaned"
+
+}
+
+# @description validate a postgres dump by reading it and extracting the table count
+# @arg $1 - the file
+# @exitcode 0 if the file is a valid dump file
+# @exitcode 1 if the file is not a valid dump file
+# @exitcode 2 if the file does not exist or is empty
+validate_postgres_dump() {
+
+    local DUMP_PATH="$1"
+
+    # Check if file exists
+    if [[ ! -f "$DUMP_PATH" ]]; then
+        echo::err "Error: File $DUMP_PATH does not exist."
+        return 2
+    fi
+
+    # Check if file is empty
+    if [[ ! -s "$DUMP_PATH" ]]; then
+        echo::err "Error: File is empty."
+        return 2
+    fi
+
+    DUMP_FILE_EXTENSION=$(path::get_extension "$DUMP_PATH" 'first')
+    case $DUMP_FILE_EXTENSION in
+        "$DUMP_CUSTOM_FILE_EXTENSION")
+          # The -l, --list option print summarized TOC of the custom archive format
+          VALIDITY_COMMAND="pg_restore -l $DUMP_PATH &>/dev/null"
+          echo::info "Checking the $DUMP_FILE_EXTENSION dump with the command: $VALIDITY_COMMAND"
+          if ! eval "$VALIDITY_COMMAND"; then
+              echo::err "pg_restore cannot read the file structure. The dump may be corrupted."
+              return 1
+          fi
+          echo::info "pg_restore can read the file structure."
+          TABLE_COUNT_COMMAND="pg_restore -l $DUMP_PATH | grep -c 'TABLE'"
+          echo::info "Getting the table count with the command: $TABLE_COUNT_COMMAND"
+          # Without any table, the grep fail
+          if ! TABLE_COUNT=$(eval "$TABLE_COUNT_COMMAND"); then
+            # the grep may fail if no tables
+            echo::warn "Dump contains no tables."
+          else
+            echo::info "Dump contains $TABLE_COUNT tables."
+          fi
+        ;;
+        "$DUMP_PLAIN_FILE_EXTENSION")
+          VALIDITY_COMMAND="grep -q 'PostgreSQL database dump complete' $DUMP_PATH"
+          echo::info "Checking the $DUMP_FILE_EXTENSION dump with the command: $VALIDITY_COMMAND"
+          if ! eval "$VALIDITY_COMMAND"; then
+              echo::err "pg_restore cannot read the file structure. The dump may be corrupted."
+              return 1
+          fi
+          echo::info "pg_restore can read the file structure."
+          TABLE_COUNT_COMMAND="grep -c 'CREATE TABLE' $DUMP_PATH"
+          echo::info "Getting the table count with the command: $TABLE_COUNT_COMMAND"
+          if ! TABLE_COUNT=$(eval "$TABLE_COUNT_COMMAND"); then
+            # the grep may fail if no tables
+            echo::warn "Dump contains no tables."
+          else
+            echo::info "Dump contains $TABLE_COUNT tables."
+          fi
+        ;;
+        *)
+          echo::err "The extension (${DUMP_FILE_EXTENSION}) is unknown (File $DUMP_PATH)"
+          return 1
+    esac
+
+
+    echo::info "Validation complete. The dump file appears to be valid."
+    return 0
+
+}
+
+function backup_command_help() {
+
+  echo ""
+  echo "Usage of the backup command against the database (${CTL_DATABASE_NAME})"
+  echo ""
+  echo "The backup command creates or restore a dump of the database ${CTL_DATABASE_NAME}"
+  echo ""
+  echo ""
+  echo "   ${CLI_NAME} backup command [--option[=value] ...] arg1 arg2 ..."
+  echo ""
+  echo "where command is one of:"
+  echo "     * create  - perform a dump and a snapshot"
+  echo "     * fetch   - fetch a dump from a snapshot"
+  echo "     * ls      - list the dump in snapshots"
+  echo "     * prune   - forget old snapshots with prune policy and perform dump file integrity checks"
+  echo "     * restore - restore a backup from a snapshot or local path"
+  echo "     * help"
+  echo ""
+  echo ""
+
+}
+
+function backup_restore_help() {
+
+  echo ""
+  echo "Usage of the 'backup restore' command"
+  echo ""
+  echo "The 'backup restore' command restores a database from a dump"
+  echo ""
+  echo "   ${CLI_NAME} backup restore [--db targetDbName] [--path dumpPath] (snapshotId|locaPath)"
+  echo ""
+  echo "where:"
+  echo "  * args: mandatory, one of:"
+  echo "      * snapshotId        - the id of a snapshot backup or latest"
+  echo "                            * You can get them with the command 'backup ls'"
+  echo "      * localPath         - a local path to a dump file"
+  echo "  * --db   targetDbName - the database target for the restoration"
+  echo "                            * by default: ${CTL_DATABASE_NAME}"
+  echo ""
+  echo "Examples:"
+  echo ""
+  echo "  * Restore the latest snapshot in the default database (${CTL_DATABASE_NAME})"
+  echo ""
+  echo "     ${CLI_NAME} backup restore latest"
+  echo ""
+  echo "  * Restore a local dump file in a new database called tempdb"
+  echo ""
+  echo "     ${CLI_NAME} backup restore --db tempdb /data/pgdump/dumpfile-db-postgres.dump"
+  echo ""
+
+
+
+}
+
+function backup_create_help() {
+
+  echo ""
+  echo "Usage of the 'backup create' command"
+  echo ""
+  echo "The 'backup create' command creates:"
+  echo "    * a dump of a database (by default ${CTL_DATABASE_NAME})"
+  echo "    * and a snapshot of the dump file"
+  echo ""
+  echo "   ${CLI_NAME} backup create [--db dbName] format"
+  echo ""
+  echo "where:"
+  echo "  * format      - the format of the dump:"
+  echo "                    * custom - Custom-format archive (Recommended)"
+  echo "                               Allows manual selection and reordering of archived items during restore"
+  echo "                    * plain  - SQL file with statements (Monolithic))"
+  echo ""
+  echo "  * --db dbName - the database name to backup (by default ${CTL_DATABASE_NAME})"
+  echo ""
+  echo "We don't support tar and directory format."
+  echo ""
+  echo "Note: "
+  echo "  Test your dump periodically by restoring it against an empty database"
+  echo "  Dump may have bugs and restoring it may lead to ERROR such as constraint xxx for relation xxxx already exists"
+
+
+
+
+}
+
+function db_command_help(){
+    echo ""
+    echo "Usage of the command '${CLI_NAME} db' against the database (${CTL_DATABASE_NAME})"
+    echo ""
+    echo "   ${CLI_NAME} db command [--option [value] ...] arg1 arg2 ..."
+    echo ""
+    echo "where command is one of:"
+    echo "     * conf           - print the postgres.conf file"
+    echo "     * drop           - drop the database"
+    echo "     * extension      - list the extensions installed"
+    echo "     * ls             - list the db in the postgres instance (cluster)"
+}
+
+function help() {
+  CLI_NAME=$(basename "$0")
+  echo ""
+  echo "Usage of the cli $CLI_NAME  against the database (${CTL_DATABASE_NAME})"
+  echo ""
+  echo "   ${CLI_NAME} command [--option [value] ...] arg1 arg2 ..."
+  echo ""
+  echo "where command is one of:"
+  echo "     * backup                   - create, restore, list database dump"
+  echo "     * exec                     - execute a SQL against the database (${CTL_DATABASE_NAME})"
+
+  echo "     * job-ls                   - print the pg_cron jobs"
+  echo "     * ps-status                - psStatus of the processes"
+  echo "     * ps-ls                    - list the processes running"
+  echo "     * ps-restart processName   - restart a process"
+  echo "     * ps-start processName     - start a process"
+  echo "     * help"
+  echo ""
+
+}
+
+
+
+
+## psStatus
+#
+# print every second the status of all process in supervisor
+function supervisor_status(){
+  while sleep 1; do
+    if OUTPUT=$(supervisorctl status all); then
+      # catch error or not (if the status is not running)
+      # supervisorctl returns a -1 exit status
+      :
+    fi
+    clear;
+    echo "$OUTPUT"
+  done
+}
+
+# @description restore a dump (See help)
+function backup_restore_command(){
+
+
+  echo::info "Backup restore initialized"
+
+  local SNAPSHOT_ID=""
+  local DUMP_PATH=""
+  local TARGET_DB_NAME=$CTL_DATABASE_NAME
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -d|--db)
+        shift
+        TARGET_DB_NAME=$1
+        shift
+        ;;
+      -p|--path)
+        shift
+        DUMP_PATH=$1
+        shift
+        ;;
+      *)
+        EXTENSION=$(path::get_extension "$1")
+        if [[ "$EXTENSION" == "" ]]; then
+          SNAPSHOT_ID=$1
+        else
+          DUMP_PATH=$1
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  # Restoration from a snapshot
+  if [ "${SNAPSHOT_ID}" != "" ]; then
+
+    # Fetch the backup
+    RESTORE_DIR=$(fetch_snapshot "$SNAPSHOT_ID")
+
+    echo::info "Searching a valid dump file in the snapshot ${SNAPSHOT_ID}"
+    DUMP_PATH=$(get_db_dump_path "$DUMP_CUSTOM_FORMAT" "$TARGET_DB_NAME")
+    CUSTOM_DUMP_FILE_TO_RESTORE="${RESTORE_DIR}${DUMP_PATH}"
+    if [ -f  "$CUSTOM_DUMP_FILE_TO_RESTORE" ]; then
+        DUMP_FILE_TO_RESTORE=$CUSTOM_DUMP_FILE_TO_RESTORE
+    else
+      DUMP_PATH=$(get_db_dump_path "$DUMP_PLAIN_FORMAT" "$TARGET_DB_NAME" "$DUMP_PLAIN_ZIP_EXTENSION")
+      SQL_DUMP_FILE_TO_RESTORE="${RESTORE_DIR}/${DUMP_PATH}"
+      if [ ! -f  "$SQL_DUMP_FILE_TO_RESTORE" ]; then
+        echo::err "We could not find any dump file to restore in the snapshot ${SNAPSHOT_ID}"
+        echo::err "  * No SQL dump found at ${SQL_DUMP_FILE_TO_RESTORE}"
+        echo::err "  * No Custom dump found at ${CUSTOM_DUMP_FILE_TO_RESTORE}"
+        echo::err ""
+        echo::err "You can give one by passing one of the local path of the snapshot ${SNAPSHOT_ID}.\n$(find "${RESTORE_DIR}")"
+        echo::err ""
+        echo::err "Choose one and execute:"
+        echo::err ""
+        echo::err "  $CLI_NAME backup restore locaPath"
+        exit 1
+      fi
+      DUMP_FILE_TO_RESTORE=$SQL_DUMP_FILE_TO_RESTORE
+    fi
+    echo::info "Dump file $DUMP_FILE_TO_RESTORE found"
+
+  else
+    if [ "$DUMP_PATH" == "" ]; then
+        backup_restore_help
+        echo::err 'A Snapshot Id or a local path should be given as argument'
+        echo::err ""
+        echo::err 'Tip:'
+        echo::err "  * You can get a snapshot id with the command 'backup ls' command"
+        echo::err "  * You can use 'latest' if you want to use the latest snapshot"
+        exit 1
+    fi
+    # Local dump path file to restore
+    DUMP_FILE_TO_RESTORE=$DUMP_PATH
+  fi
+
+  # Format
+  DUMP_FORMAT=$(get_dump_format_from_path "$DUMP_FILE_TO_RESTORE")
+
+  # Unzip if zipped
+  echo::info "Unzip the dump if zipped"
+  EXTENSION=$(path::get_extension "$DUMP_FILE_TO_RESTORE" "last")
+  if [ "$EXTENSION" == $DUMP_PLAIN_ZIP_EXTENSION ]; then
+    echo::info "The dump is zipped, unzipping"
+    DUMP_PATH=$(get_db_dump_path "$DUMP_FORMAT" "$TARGET_DB_NAME")
+    DUMP_NAME=$(basename "$DUMP_PATH")
+    DUMP_DIR=$(dirname "$DUMP_FILE_TO_RESTORE");
+    UNZIPPED_DUMP="$DUMP_DIR/$DUMP_NAME"
+    command::echo_eval "gunzip < ${DUMP_FILE_TO_RESTORE} > $UNZIPPED_DUMP"
+    DUMP_FILE_TO_RESTORE=$UNZIPPED_DUMP
+    echo::info "Unzipping done to $DUMP_FILE_TO_RESTORE"
+  fi
+
+  echo::info "Validating the dump file to restore"
+  validate_postgres_dump "${DUMP_FILE_TO_RESTORE}"
+
+  echo::info "Restoring the database ${TARGET_DB_NAME} with the dump (${DUMP_FILE_TO_RESTORE})"
+  echo::info "Checking if the database ${TARGET_DB_NAME} exists"
+  drop_db_if_exists "${TARGET_DB_NAME}"
+
+  # In a plain or custom dump, their is no database creation statement
+  # the --create option of a custom dump is just fucked up
+  echo::info "Creating an empty database ${TARGET_DB_NAME}"
+  # load the output of pg_restore into a truly empty database (ie template0)
+  command::echo_eval "createdb -T template0 ${TARGET_DB_NAME}"
+  echo::info "Database created"
+
+  echo::info "Restoring the database with a $DUMP_FORMAT format"
+  DUMP_RESTORE_LOG="${DUMP_FILE_TO_RESTORE}.log"
+  echo::info "The restoration log will be logged to the file $DUMP_RESTORE_LOG"
+  case "$DUMP_FORMAT" in
+    "$DUMP_PLAIN_FORMAT")
+      # --echo-all - echo the SQL statement
+      # example of error: ERROR:  constraint "realm_list_registration_registration_realm_id_registration_fkey" for relation "realm_list_registration" already exists
+      command::echo_eval "psql --echo-all --set ON_ERROR_STOP=on --single-transaction ${TARGET_DB_NAME} -f ${DUMP_FILE_TO_RESTORE} > ${DUMP_RESTORE_LOG}";
+      ;;
+    "$DUMP_CUSTOM_FORMAT")
+    # Options:
+      # -d              : makes a direct connection with libpq (If the connection does not work, try with psql)
+      # --clean         : execute `DROP TABLE xxxx` (used for overwriting an existing database)
+      #                   because we drop the database before restoration there is no database anymore and
+      #                   failed with `ERROR:  table "xxxx" does not exist`
+      # --create [-C]   : drop the database before restoring.
+      # --exit-on-error : default is to continue and to display a count of errors at the end of the restoration
+      # --file          : Specify output file for generated script, or for the listing when used with -l. Use '-' for stdout.
+      command::echo_eval "pg_restore --exit-on-error -d ${TARGET_DB_NAME} --file ${DUMP_RESTORE_LOG} ${DUMP_FILE_TO_RESTORE}"
+      ;;
+    *)
+      echo::err "The format $DUMP_FORMAT is not yet implemented"
+  esac
+  echo::info "Restoration done"
+
+  echo::info "Bye"
+
+}
+
+
+function db_command(){
+
+    if [[ $# -eq 0 ]]; then
+        db_command_help
+        echo::err "No arguments provided."
+        return 1
+    fi
+
+    # Assign the first argument to a string
+    local COMMAND="$1"
+    shift  # Remove the first argument from the argument list
+
+    # Assign the rest of the arguments to an array
+    local ARGS=()
+    ARGS=("$@")
+
+    case "$COMMAND" in
+      ls)
+        psql -c "\l"
+        ;;
+      extension)
+        psql -c "\dx"
+        ;;
+      conf)
+        cat /etc/postgresql/postgresql.conf
+        ;;
+      drop)
+        drop_db_if_exists "${CTL_DATABASE_NAME}"
+        ;;
+      *)
+        echo "Unknown command ($COMMAND) found"
+        exit 1
+          ;;
+    esac
+
+}
+function backup_create_command(){
+
+  local DUMP_FORMAT=""
+  local TARGET_DB_NAME=$CTL_DATABASE_NAME
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -d|--db)
+        shift
+        TARGET_DB_NAME=$1
+        shift
+        ;;
+      "--help"|"-h"|"help")
+        backup_create_help
+        return
+        ;;
+      *)
+        DUMP_FORMAT=$1
+        shift
+        ;;
+    esac
+  done
+
+  if [ $DUMP_CUSTOM_FORMAT == "" ]; then
+    backup_create_help
+    echo::err "A dump format is mandatory."
+    echo::err "If you don't know, the best is to choose: $DUMP_CUSTOM_FORMAT"
+  fi
+
+  # For the format documentation see: https://www.postgresql.org/docs/current/app-pgdump.html
+  local DUMP_PATH;
+  case "$DUMP_FORMAT" in
+      "$DUMP_PLAIN_FORMAT")
+        DUMP_PATH=$(get_db_dump_path "$DUMP_FORMAT" "$TARGET_DB_NAME")
+        # --clean will add drop statement for database objects prior to outputting the commands for creating them
+        #   error with clean: ERROR:  schema "cs_realms" does not exist
+        # --create will add a create database statement
+        EVAL_COMMAND="pg_dump --format=p --file=${DUMP_PATH} ${CTL_DATABASE_NAME}"
+        ;;
+      "$DUMP_CUSTOM_FORMAT")
+        DUMP_PATH=$(get_db_dump_path "$DUMP_FORMAT" "$TARGET_DB_NAME")
+        EVAL_COMMAND="pg_dump --format=c --file=${DUMP_PATH} ${CTL_DATABASE_NAME}"
+        ;;
+      "$DUMP_FORMAT_DIR")
+        DUMP_PATH=$(get_db_dump_path "$DUMP_FORMAT" "$TARGET_DB_NAME")
+        EVAL_COMMAND="pg_dump --format=d --file=${DUMP_PATH} ${CTL_DATABASE_NAME}"
+        ;;
+      *)
+        backup_create_help
+        echo::err "The dump format $DUMP_FORMAT is unknown or not supported"
+        return 1
+  esac
+
+  echo::info "Starting a $DUMP_FORMAT backup"
+  # Cleaning the snapshot directory
+  cleaning_snapshot_dir
+
+  echo::info "Dumping the database (${CTL_DATABASE_NAME}) into the snapshot directory"
+  command::echo_eval "$EVAL_COMMAND"
+  echo::info "Done"
+
+  echo::info "Checking the dump file validity"
+  validate_postgres_dump "${DUMP_PATH}"
+
+  if [ "$DUMP_FORMAT" == "$DUMP_PLAIN_FORMAT" ]; then
+    echo::info "Gzip $DUMP_FORMAT format"
+    command::echo_eval "gzip < $DUMP_PATH > $DUMP_PATH.$DUMP_PLAIN_ZIP_EXTENSION"
+    command::echo_eval "rm $DUMP_PATH"
+  fi
+
+  echo::info "Creating a snapshot"
+  command::echo_eval "restic backup ${PG_X_DUMP_SNAPSHOT_DIR}"
+  echo::info "Snapshot done"
+
+  echo::info "Backup done"
+
+}
+
+
+# @description list the backup dump dump snapshot
+# @arg $1 the snapshot id
+function backup_ls_command(){
+
+  SNAPSHOT_ID=${1:-}
+  if [ "$SNAPSHOT_ID" == "" ]; then
+    restic find --long  "${PG_X_DUMP_DIR}"
+  else
+    restic ls "$SNAPSHOT_ID"
+  fi
+
+
+}
+
+function backup_fetch_command_help() {
+
+  echo ""
+  echo "Usage of the 'backup fetch' command"
+  echo ""
+  echo "The 'backup fetch' command fetch a backup snapshot into your local file system."
+  echo ""
+  echo "   ${CLI_NAME} backup fetch [-h|--help] snapshotId"
+  echo ""
+  echo "where"
+  echo "     * snapshotId  - the snapshotId or latest for the latest snapshot"
+  echo "     * -h|help     - print the help"
+  echo ""
+  echo ""
+
+}
+
+function backup_fetch_command(){
+
+  local SNAPSHOT_ID=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      "-h"|"--help"|"help")
+        backup_fetch_command_help
+        return
+        ;;
+      *)
+        SNAPSHOT_ID=${1}
+        shift
+        ;;
+    esac
+  done
+
+  if [ "$SNAPSHOT_ID" == "" ]; then
+      backup_fetch_command_help
+      echo::err 'The Snapshot Id should be given as first argument'
+      echo::err "  * use the 'backup ls' command to get the available snapshot id"
+      echo::err "  * or use 'latest' for the latest snapshot"
+      return 1
+  fi
+
+  RESTORE_DIR=$(fetch_snapshot "$SNAPSHOT_ID")
+  echo::info "The restored snapshot files are available at ${RESTORE_DIR}"
+  command::echo_eval "find $RESTORE_DIR"
+
+}
+
+function walg_restore(){
+
+  stop_word="recovered"
+
+  # 2 options: strace of snoops a tty
+  # read the stdout (fd/1) and stderr (fd/2) of overmind (proc/1)
+  # pb the PID on restart are not the same
+  # https://github.com/tmux/tmux/wiki/Control-Mode/fd5e33023fe7c16cb573b954d05c70e16d225a9a#pane-output
+  # debug the process (e.g. strace, dtrace/dtruss, gdb, lldb, ...)
+  # strace works using the ptrace system call, so if ptrace isn’t allowed
+  # ptrace needs to be allowed via a switch to the docker command (ie cap_add: SYS_PTRACE)
+  # strace -e trace=write -s 1000 -p 1 2>&1 | while ....
+  # ie prints write operation of the process (1000 length) specified by PID (-p 1)
+  # https://unix.stackexchange.com/questions/58550/how-to-view-the-output-of-a-running-process-in-another-bash-session
+  # watch which snoops a given tty, e.g.
+  # watch /dev/pts/0
+  # https://github.com/rapiz1/catp/
+  # if you cat you just delete from the log the long line
+  cat /proc/1/fd/1 /proc/1/fd/2 | while IFS= read -r line
+  # you can write to them ls >/proc/1/fd/1
+  # https://github.com/DarthSim/overmind/issues/111
+  # cat /proc/20/fd/1 /proc/20/fd/2
+  do
+      echo "$line"
+      if [[ "$line" == *"$stop_word"* ]]; then
+          break
+      fi
+  done
+
+}
+
+
+function backup_command(){
+
+  # Check if at least one argument is provided
+  if [[ $# -eq 0 ]]; then
+      backup_command_help
+      echo::err "No arguments provided."
+      return 1
+  fi
+
+  # Assign the first argument to a string
+  local COMMAND="$1"
+  shift  # Remove the first argument from the argument list
+
+  # Assign the rest of the arguments to an array
+  local ARGS=()
+  ARGS=("$@")
+
+  case "$COMMAND" in
+    create)
+      backup_create_command "${ARGS[@]}"
+      ;;
+    restore)
+      backup_restore_command "${ARGS[@]}"
+      ;;
+    fetch)
+      backup_fetch_command "${ARGS[@]}"
+      ;;
+    ls)
+      backup_ls_command "${ARGS[@]}"
+      ;;
+    prune)
+      backupPruneCommand
+      ;;
+    *)
+      echo "Unknown command ($COMMAND) found"
+      exit 1
+        ;;
+  esac
+
+}
+
+# @description execute a sql command
+# @arg $1 - the SQL
+function exec_command(){
+  psql -c "$1" -d "${CTL_DATABASE_NAME}"
+}
+
+function backup_prune_command(){
+
+  echo::info "Rolling the dump files (forget and prune)"
+  command="restic forget --prune ${DBCTL_FORGET_POLICY:---keep-hourly 5 --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 3}"
+  echo::info "\nExecuting the command:\n$command\n"
+  eval "$command"
+
+  echo::info "Data check with subset"
+  COUNTER_FILE="$DATA_HOME/dbctl-check-subset-counter"
+  COUNTER_TOTAL=${DBCTL_CHECK_SUBSET:-5}
+  if [ ! -f "$COUNTER_FILE" ]; then
+      echo 0 > "$COUNTER_FILE"
+  fi
+  counter=$(cat "$COUNTER_FILE")
+  counter=$((counter + 1))
+  if [ "$counter" -gt "$COUNTER_TOTAL" ]; then
+      counter=1
+  fi
+  echo "$counter" > "$COUNTER_FILE"
+
+  command="restic check --read-data-subset=$counter/$COUNTER_TOTAL"
+  echo::info "\nExecuting the command:\n$command\n"
+  eval "$command"
+
+  echo::info "Dump Prune done"
+}
+
+#################################
+## Global Parameters
+#################################
+CTL_DATABASE_NAME=${POSTGRES_DB:-}
+if [ "${CTL_DATABASE_NAME}" == "" ]; then
+  CTL_DATABASE_NAME=${POSTGRES_USER:-}
+fi;
+if [ "${CTL_DATABASE_NAME}" == "" ]; then
+  echo::err "The database could not be determined via POSTGRES_DB or POSTGRES_USER"
+  exit 1;
+fi;
+
+## Dump parameter
+PG_X_DUMP_DIR=${PG_X_DUMP_DIR:-}
+if [[ ${PG_X_DUMP_DIR} == "" ]]; then
+    PG_X_DUMP_DIR="$(path::get_temp_directory)/pg-x/dump"
+    echo::warn "The PG_X_DUMP_DIR env was not set. Default value of $PG_X_DUMP_DIR used"
+fi;
+mkdir -p "$PG_X_DUMP_DIR"
+###############################
+# Constant for the dump FORMAT
+###############################
+# * The format is the command entry (for human)
+# * The extension is the file entry (to determine the format from a file)
+DUMP_PLAIN_FORMAT="plain"
+DUMP_PLAIN_FILE_EXTENSION="sql"
+DUMP_PLAIN_ZIP_EXTENSION="gz"
+DUMP_CUSTOM_FORMAT=custom
+DUMP_CUSTOM_FILE_EXTENSION="dump"
+# DUMP_FORMAT_TAR="tar"
+DUMP_FORMAT_DIR="dir"
+
+
+# The snapshot directory is the directory that restic snapshots.
+# ie before every dump creation/restoration,
+# the directory is cleaned to have only one dump at a time
+PG_X_DUMP_SNAPSHOT_DIR=${PG_X_DUMP_SNAPSHOT_DIR:-"$PG_X_DUMP_DIR/snapshot"}
+mkdir -p "$PG_X_DUMP_SNAPSHOT_DIR"
+
+# PG_X_RESTORE_DIR_BASE where the files restored are going
+# We use a specific directory be able to mount a volume
+PG_X_RESTORE_DIR_BASE=/tmp/snapshot-restore
+mkdir -p "$PG_X_RESTORE_DIR_BASE"
+
+
+#######################################
+## Main
+#######################################
+
+if [[ $# -eq 0 ]]; then
+  help
+  echo::err 'No command was given.'
+  exit 1
+fi
+
+# Assign the first argument to a string
+COMMAND="$1"
+shift  # Remove the first argument from the argument list
+
+# synopsis for doc
+if [ "$COMMAND" == "synopsis" ]; then
+  doc::help help
+  exit
+fi
+
+# Assign the rest of the arguments to an array
+declare -a ARGS=()
+ARGS=("$@")
+
+
+#################################
+## Start
+#################################
+echo
+echo "${CLI_NAME^} ${COMMAND^}"
+echo "-------------------------------------------"
+echo ""
+case ${COMMAND} in
+backup)
+  backup_command "${ARGS[@]}"
+  ;;
+restore)
+  backup_restore_command "${ARGS[@]}"
+  ;;
+exec)
+  exec_command "${ARGS[@]}"
+  ;;
+db)
+  db_command "${ARGS[@]}"
+  ;;
+wal-ls)
+  psql -c "select * from pg_stat_archiver"
+#  psql -c "SELECT pg_switch_wal()"
+  psql -c "SHOW archive_mode; SHOW archive_command"
+  ;;
+ps-ls)
+  psLs
+  ;;
+ps-restart)
+  psRestart
+  ;;
+ps-status)
+  supervisor_status
+  ;;
+ps-start)
+  psStart
+  ;;
+ps-log)
+  psLog
+  ;;
+pg)
+  pg_ctl "${OPTIONS[@]}"
+  ;;
+psql)
+  psql "${OPTIONS[@]}"
+  ;;
+job-ls)
+  EVAL_COMMAND="psql -c 'select * from cron.job_run_details order by start_time desc limit 5'"
+  echo::info "Executing the command:\n$EVAL_COMMAND"
+  eval "$EVAL_COMMAND"
+  ;;
+help)
+  help
+  ;;
+*)
+  help
+  echo::err "The command $COMMAND is unknown"
+  exit 1
+  ;;
+esac

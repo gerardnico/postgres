@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+# copy the bashlib library
+# This script should be run from the mono project directory
+
+PROJECTS=("postgres-restic" "postgres-walg")
+for PROJECT in "${PROJECTS[@]}"; do
+  PROJECT_BIN="Dockerfiles/$PROJECT/bin"
+  TARGET_LIB="$PROJECT_BIN/lib"
+  if [ -d "$TARGET_LIB" ]; then
+    echo "BashLib found for project $PROJECT at $TARGET_LIB"
+    continue
+  fi
+  rm -rf "$TARGET_LIB"
+  if [ "$BASHLIB_PATH" == "" ]; then
+    echo "BASHLIB_PATH is not set"
+    continue
+  fi
+  cp -r "$BASHLIB_PATH" "$PROJECT_BIN"
+  echo "Bash lib copied for project $PROJECT into $PROJECT_BIN"
+done
